@@ -1,0 +1,71 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Source Sans 3", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  --bg: #f4f1ec;
+  --surface: #faf8f5;
+  --surface-raised: #ffffff;
+  --border: #ddd6cc;
+  --border-subtle: #ebe5dc;
+  --text: #2c2825;
+  --text-muted: #7a7268;
+  --accent: #3d5a4c;
+  --accent-hover: #2f463b;
+  --danger: #b54a4a;
+  --danger-bg: #fdf0f0;
+  --danger-border: #e8c4c4;
+  --todo: #8a8278;
+  --progress: #c4843a;
+  --done: #4a8f6a;
+  --shadow-sm: 0 1px 2px rgb(44 40 37 / 0.06);
+  --shadow-md: 0 4px 12px rgb(44 40 37 / 0.08);
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #1a1d21;
+  --surface: #22262b;
+  --surface-raised: #2a2f35;
+  --border: #3a4048;
+  --border-subtle: #2e3339;
+  --text: #e8e4df;
+  --text-muted: #9a948a;
+  --accent: #0e790e;
+  --accent-hover: #075327;
+  --danger: #d47070;
+  --danger-bg: #2d2222;
+  --danger-border: #5c3a3a;
+  --todo: #9a948a;
+  --progress: #d4a04a;
+  --done: #6bb88a;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.2);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.3);
+  color-scheme: dark;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply m-0 min-h-screen font-sans antialiased;
+    background-color: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+}
