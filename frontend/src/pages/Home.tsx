@@ -147,7 +147,7 @@ function Home({ theme, onToggleTheme }: HomeProps) {
       <header className="mb-7 flex items-start justify-between gap-4 border-b border-[var(--border-subtle)] pb-5">
         <div className="text-left">
           <h1 className="m-0 text-[1.65rem] font-bold tracking-tight text-[var(--text)]">
-            Kanban Desk
+            Jlord.Dev
           </h1>
           <p className="mt-1.5 text-sm text-[var(--text-muted)]">
             {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} across {columns.length} columns
