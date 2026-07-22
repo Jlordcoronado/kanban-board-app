@@ -22,8 +22,8 @@ export interface TaskRow {
 let db: Database<sqlite3.Database, sqlite3.Statement>;
 
 async function columnExists(table: string, column: string): Promise<boolean> {
-  const cols = await db.all<{ name: string }>(`PRAGMA table_info(${table})`);
-  return cols.some((c) => c.name === column);
+  const cols = await db.all<{ name: string }[]>(`PRAGMA table_info(${table})`);
+  return cols.some((c: { name: string }) => c.name === column);
 }
 
 async function migrate(): Promise<void> {

@@ -1,23 +1,29 @@
 import { useState, useEffect } from 'react';
-import type { Task } from '../types/task.ts';
+import type { Task, Column } from '../types/task.ts';
 import { KanbanColumn } from '../component/KanbanColumn.tsx';
+import { TaskModal } from '../component/TaskModal.tsx';
+import { AddColumnModal } from '../component/AddColumnModal.tsx';
+import { ConfirmDeleteModal } from '../component/ConfirmDeleteModal.tsx';
 
 interface HomeProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
 }
 
-const inputClass =
-  'flex-1 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 py-2.5 text-[0.95rem] text-[var(--text)] transition-[border-color,box-shadow] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_rgb(61_90_76/0.15)] focus:outline-none dark:focus:shadow-[0_0_0_3px_rgb(107_158_130/0.2)]';
-
-const btnBase =
-  'cursor-pointer rounded-md border px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]';
-
 function Home({ theme, onToggleTheme }: HomeProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDescription, setNewDescription] = useState('');
+  const [columns, setColumns] = useState<Column[]>([
+    { id: 'todo', title: 'To Do' },
+    { id: 'in progress', title: 'In Progress' },
+    { id: 'done', title: 'Done' },
+  ]);
   const [dragOverColumn, setDragOverColumn] = useState<Task['status'] | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null);
+
+  const [isAddColumnOpen, setIsAddColumnOpen] = useState(false);
+  const [deletingColumnId, setDeletingColumnId] = useState<string | null>(null);
+  const [isConfirmDeleteAllOpen, setIsConfirmDeleteAllOpen] = useState(false);
 
   const API_URL = 'http://localhost:5000/api/tasks';
 
@@ -35,27 +41,50 @@ function Home({ theme, onToggleTheme }: HomeProps) {
     loadTasks();
   }, []);
 
-  const addTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
+  const handleRenameColumn = (id: string, newTitle: string) => {
+    const sanitized = newTitle.trim();
+    if (!sanitized) return;
 
-    try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newTitle,
-          description: newDescription,
-          status: 'todo',
-        }),
-      });
-      const newTask = await res.json();
-      setTasks([...tasks, newTask]);
-      setNewTitle('');
-      setNewDescription('');
-    } catch (err) {
-      console.error('Error adding task:', err);
-    }
+    setColumns((prev) =>
+      prev.map((col) => (col.id === id ? { ...col, title: sanitized } : col))
+    );
+  };
+
+  const handleAddColumn = (title: string) => {
+    const sanitized = title.trim();
+    if (!sanitized) return;
+
+    const newId = `col-${Date.now()}`;
+    setColumns((prev) => [...prev, { id: newId, title: sanitized }]);
+  };
+
+  const confirmDeleteColumn = (id: string) => {
+    if (columns.length <= 1) return;
+    const fallbackId = columns.find((c) => c.id !== id)?.id || 'todo';
+    setTasks((prev) =>
+      prev.map((t) => (t.status === id ? { ...t, status: fallbackId } : t))
+    );
+    setColumns((prev) => prev.filter((col) => col.id !== id));
+    setDeletingColumnId(null);
+  };
+
+  const createTask = async (
+    taskData: Pick<
+      Task,
+      'title' | 'description' | 'priority' | 'status' | 'startedAt' | 'dueDate' | 'expectedFinishAt'
+    >
+  ) => {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(taskData),
+    });
+
+    if (!res.ok) throw new Error('Task creation failed');
+
+    const newTask = await res.json();
+    setTasks((prev) => [...prev, newTask]);
+    setNewTaskStatus(null);
   };
 
   const moveTask = async (id: string, newStatus: Task['status']) => {
@@ -66,10 +95,30 @@ function Home({ theme, onToggleTheme }: HomeProps) {
         body: JSON.stringify({ status: newStatus }),
       });
       const updatedTask = await res.json();
-      setTasks(tasks.map((t) => (t.id === id ? updatedTask : t)));
+      setTasks((prev) => prev.map((t) => (t.id === id ? updatedTask : t)));
     } catch (err) {
       console.error('Error moving task:', err);
     }
+  };
+
+  const updateTask = async (
+    id: string,
+    changes: Pick<
+      Task,
+      'title' | 'description' | 'priority' | 'status' | 'startedAt' | 'dueDate' | 'expectedFinishAt'
+    >
+  ) => {
+    const res = await fetch(`${API_URL}/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(changes),
+    });
+
+    if (!res.ok) throw new Error('Task update failed');
+
+    const updatedTask = await res.json();
+    setTasks((prev) => prev.map((task) => (task.id === id ? updatedTask : task)));
+    setEditingTask(null);
   };
 
   const deleteTask = async (id: string) => {
@@ -81,10 +130,7 @@ function Home({ theme, onToggleTheme }: HomeProps) {
     }
   };
 
-  const deleteAllTasks = async () => {
-    if (!window.confirm('Are you sure you want to delete ALL tasks? This cannot be undone')) {
-      return;
-    }
+  const confirmDeleteAllTasks = async () => {
     try {
       const res = await fetch(API_URL, { method: 'DELETE' });
       if (res.ok) {
@@ -93,6 +139,7 @@ function Home({ theme, onToggleTheme }: HomeProps) {
     } catch (err) {
       console.error('Error deleting all tasks:', err);
     }
+    setIsConfirmDeleteAllOpen(false);
   };
 
   return (
@@ -102,11 +149,35 @@ function Home({ theme, onToggleTheme }: HomeProps) {
           <h1 className="m-0 text-[1.65rem] font-bold tracking-tight text-[var(--text)]">
             Kanban Desk
           </h1>
-          <p className="mt-1.5 font-mono text-[0.8rem] text-[var(--text-muted)]">
-            {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} across 3 columns
+          <p className="mt-1.5 text-sm text-[var(--text-muted)]">
+            {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} across {columns.length} columns
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 text-xs font-semibold text-[#faf8f5] transition-colors hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)]"
+            onClick={() => setNewTaskStatus(columns[0]?.id || 'todo')}
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Task
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-xs font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            onClick={() => setIsAddColumnOpen(true)}
+          >
+            + Column
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 text-xs font-semibold text-[var(--danger)] transition-colors hover:bg-[var(--danger-border)]"
+            onClick={() => setIsConfirmDeleteAllOpen(true)}
+          >
+            Clear All
+          </button>
           <button
             type="button"
             className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-0 text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
@@ -139,75 +210,97 @@ function Home({ theme, onToggleTheme }: HomeProps) {
         </div>
       </header>
 
-      <form
-        className="mb-6 flex flex-col gap-3 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--surface)] p-4 md:flex-row md:items-stretch md:gap-2.5"
-        onSubmit={addTask}
-      >
-        <input
-          className={inputClass}
-          type="text"
-          placeholder="Task title"
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          required
-        />
-        <input
-          className={inputClass}
-          type="text"
-          placeholder="Description (optional)"
-          value={newDescription}
-          onChange={(e) => setNewDescription(e.target.value)}
-        />
-        <div className="flex shrink-0 gap-2">
-          <button
-            className={`${btnBase} border-[var(--accent)] bg-[var(--accent)] text-[#faf8f5] hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)]`}
-            type="submit"
-          >
-            Add task
-          </button>
-          <button
-            className={`${btnBase} border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)] hover:bg-[var(--danger-border)]`}
-            type="button"
-            onClick={deleteAllTasks}
-          >
-            Clear all
-          </button>
-        </div>
-      </form>
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-3 lg:grid-cols-4 md:gap-5">
+        {columns.map((col) => (
+          <KanbanColumn
+            key={col.id}
+            status={col.id}
+            title={col.title}
+            tasks={tasks.filter((t) => t.status === col.id)}
+            columns={columns}
+            moveTask={moveTask}
+            deleteTask={deleteTask}
+            dragOverColumn={dragOverColumn}
+            setDragOverColumn={setDragOverColumn}
+            openTask={setEditingTask}
+            onRenameColumn={handleRenameColumn}
+            onDeleteColumn={(id) => setDeletingColumnId(id)}
+            onAddTask={(status) => setNewTaskStatus(status)}
+          />
+        ))}
 
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-3 md:gap-5">
-        <KanbanColumn
-          status="todo"
-          title="To Do"
-          tasks={tasks.filter((t) => t.status === 'todo')}
-          moveTask={moveTask}
-          deleteTask={deleteTask}
-          dragOverColumn={dragOverColumn}
-          setDragOverColumn={setDragOverColumn}
-        />
-
-        <KanbanColumn
-          status="in progress"
-          title="In Progress"
-          tasks={tasks.filter((t) => t.status === 'in progress')}
-          moveTask={moveTask}
-          deleteTask={deleteTask}
-          dragOverColumn={dragOverColumn}
-          setDragOverColumn={setDragOverColumn}
-        />
-
-        <KanbanColumn
-          status="done"
-          title="Done"
-          tasks={tasks.filter((t) => t.status === 'done')}
-          moveTask={moveTask}
-          deleteTask={deleteTask}
-          dragOverColumn={dragOverColumn}
-          setDragOverColumn={setDragOverColumn}
-        />
+        <button
+          type="button"
+          onClick={() => setIsAddColumnOpen(true)}
+          className="flex min-h-80 flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--surface-raised)] hover:text-[var(--accent)] cursor-pointer"
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Add Column
+        </button>
       </div>
+
+      {newTaskStatus !== null && (
+        <TaskModal
+          task={{
+            id: '',
+            title: '',
+            description: '',
+            status: newTaskStatus,
+            priority: 'medium',
+            startedAt: null,
+            dueDate: null,
+            expectedFinishAt: null,
+          }}
+          columns={columns}
+          onSave={async (changes) => {
+            await createTask(changes);
+          }}
+          onClose={() => setNewTaskStatus(null)}
+        />
+      )}
+
+      {isAddColumnOpen && (
+        <AddColumnModal
+          existingTitles={columns.map((c) => c.title)}
+          onAddColumn={handleAddColumn}
+          onClose={() => setIsAddColumnOpen(false)}
+        />
+      )}
+
+      {deletingColumnId && (
+        <ConfirmDeleteModal
+          title="Delete Column"
+          message={`Are you sure you want to delete the column "${columns.find((c) => c.id === deletingColumnId)?.title}"? Any remaining tasks will be moved to the first column.`}
+          confirmText="Delete Column"
+          onConfirm={() => confirmDeleteColumn(deletingColumnId)}
+          onClose={() => setDeletingColumnId(null)}
+        />
+      )}
+
+      {isConfirmDeleteAllOpen && (
+        <ConfirmDeleteModal
+          title="Delete All Tasks"
+          message="Are you sure you want to delete ALL tasks from your Kanban board? This action cannot be undone."
+          confirmText="Delete All Tasks"
+          onConfirm={confirmDeleteAllTasks}
+          onClose={() => setIsConfirmDeleteAllOpen(false)}
+        />
+      )}
+
+      {editingTask && (
+        <TaskModal
+          task={editingTask}
+          columns={columns}
+          onSave={(changes) => updateTask(editingTask.id, changes)}
+          onClose={() => setEditingTask(null)}
+        />
+      )}
     </div>
   );
 }
 
 export default Home;
+
+

@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const prioritySchema = z.enum(['low', 'medium', 'high']);
 
-export const taskStatusSchema = z.enum(['todo', 'in progress', 'done']);
+export const taskStatusSchema = z.string().min(1).max(100);
 
 export const createTaskSchema = z.object({
   title: z.string().trim().min(1).max(200),
