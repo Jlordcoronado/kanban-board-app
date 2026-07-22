@@ -25,7 +25,7 @@ function Home({ theme, onToggleTheme }: HomeProps) {
   const [deletingColumnId, setDeletingColumnId] = useState<string | null>(null);
   const [isConfirmDeleteAllOpen, setIsConfirmDeleteAllOpen] = useState(false);
 
-  const API_URL = 'http://localhost:5000/api/tasks';
+  const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000') + '/api/tasks';
 
   useEffect(() => {
     const loadTasks = async () => {
