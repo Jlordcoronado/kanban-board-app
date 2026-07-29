@@ -5,7 +5,7 @@ import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 const DATABASE_PATH = process.env.DATABASE_PATH ?? './kanban.db';
 const priorities = ['low', 'medium', 'high'] as const;
 
@@ -106,7 +106,7 @@ async function startServer() {
   }
 
   console.log('Database connected and table ready.');
-  app.listen(PORT, () => {
+  app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
   });
 }
