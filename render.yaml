@@ -17,11 +17,12 @@ services:
   # ------------------------------------
   # 2. New Frontend Static Site
   # ------------------------------------
-  - type: static
+  - type: web
+    runtime: static
     name: kanban-desk-frontend
     rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
         fromService:
