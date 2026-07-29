@@ -78,23 +78,6 @@ npm run dev
 
 The app opens at `http://localhost:5173`.
 
-### Docker & Cloud Deployment (Render)
-
-The backend is fully containerized with Docker, making it easy to deploy on Render or any cloud provider.
-
-#### Local Docker Testing
-```bash
-cd backend
-docker build -t kanban-api .
-docker run -p 5000:5000 -e PORT=5000 kanban-api
-```
-
-#### Render Deployment
-This repository includes a `render.yaml` blueprint. To deploy:
-1. Connect your GitHub repository to Render.
-2. Select **New > Blueprint** and Render will automatically detect the Docker configuration and deploy the API.
-3. Make sure to set `VITE_API_URL` to your live Render backend URL in your frontend's environment variables.
-
 ## API Endpoints
 
 | Method | Endpoint | Description |
@@ -109,7 +92,7 @@ This repository includes a `render.yaml` blueprint. To deploy:
 
 - [ ] User authentication (JWT)
 - [ ] AI-powered task suggestions
-- [x] Cloud deployment with live demo (Docker/Render)
+- [x] Cloud deployment with live demo
 - [ ] Drag-and-drop column reordering
 
 ## Author
