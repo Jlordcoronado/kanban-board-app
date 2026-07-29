@@ -1,4 +1,7 @@
 services:
+  # ------------------------------------
+  # 1. Existing Backend API
+  # ------------------------------------
   - type: web
     name: kanban-desk-api
     runtime: docker
@@ -10,3 +13,22 @@ services:
       - key: JWT_SECRET
         generateValue: true
     plan: free
+
+  # ------------------------------------
+  # 2. New Frontend Static Site
+  # ------------------------------------
+  - type: static
+    name: kanban-desk-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: kanban-desk-api
+          envVarKey: RENDER_EXTERNAL_URL
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
