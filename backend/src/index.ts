@@ -1,16 +1,23 @@
 import express from 'express';
 import cors from 'cors';
+import { GoogleGenAI } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
+import { z } from 'zod';
+import 'dotenv/config';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const DATABASE_PATH = process.env.DATABASE_PATH ?? './kanban.db';
 const priorities = ['low', 'medium', 'high'] as const;
+const AI_REWRITE_LIMIT = 3;
+const AI_REWRITE_WINDOW_MS = 10 * 60 * 1000;
+const aiRewriteRequests = new Map<string, number[]>();
 
 type Priority = (typeof priorities)[number];
 
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 
@@ -59,6 +66,26 @@ function mapTask(row: TaskRow): Task {
     dueDate: row.due_date,
     expectedFinishAt: row.expected_finish_at,
   };
+}
+
+const rewriteTaskSchema = z.object({
+  text: z.string().trim().min(1, 'Text is required').max(3_000, 'Text must be 3,000 characters or fewer'),
+});
+
+function getAiRateLimit(ip: string): number | null {
+  const now = Date.now();
+  const recentRequests = (aiRewriteRequests.get(ip) ?? []).filter(
+    (requestedAt) => now - requestedAt < AI_REWRITE_WINDOW_MS
+  );
+
+  if (recentRequests.length >= AI_REWRITE_LIMIT) {
+    aiRewriteRequests.set(ip, recentRequests);
+    return Math.ceil((AI_REWRITE_WINDOW_MS - (now - recentRequests[0]!)) / 1000);
+  }
+
+  recentRequests.push(now);
+  aiRewriteRequests.set(ip, recentRequests);
+  return null;
 }
 
 async function columnExists(table: string, column: string): Promise<boolean> {
@@ -112,6 +139,51 @@ async function startServer() {
 }
 
 // API Routes
+
+// Rewrites task text without persisting changes. The frontend will let the user review it first.
+app.post('/api/ai/rewrite-task', async (req, res) => {
+  const parsedBody = rewriteTaskSchema.safeParse(req.body);
+
+  if (!parsedBody.success) {
+    return res.status(400).json({ message: parsedBody.error.issues[0]?.message ?? 'Invalid request body' });
+  }
+
+  const retryAfterSeconds = getAiRateLimit(req.ip ?? 'unknown');
+  if (retryAfterSeconds !== null) {
+    res.set('Retry-After', String(retryAfterSeconds));
+    return res.status(429).json({
+      message: `AI rewrite limit reached. Try again in ${retryAfterSeconds} seconds.`,
+    });
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ message: 'AI rewriting is not configured on this server.' });
+  }
+
+  try {
+    const client = new GoogleGenAI({ apiKey });
+    const response = await client.models.generateContent({
+      model: process.env.GEMINI_MODEL ?? 'gemini-3.1-flash-lite',
+      contents: parsedBody.data.text,
+      config: {
+        systemInstruction:
+          'Rewrite only the provided Kanban task text into a concise, clear, professional task description. Preserve the original intent. Do not invent requirements, names, deadlines, steps, or technical facts. Return plain text only: no title, labels, bullets, quotation marks, or explanation.',
+        temperature: 0.2,
+      },
+    });
+    const rewrittenText = response.text?.trim() ?? '';
+
+    if (!rewrittenText) {
+      return res.status(502).json({ message: 'AI did not return a rewrite. Please try again.' });
+    }
+
+    res.json({ rewrittenText });
+  } catch (error) {
+    console.error('AI task rewrite failed:', error);
+    res.status(502).json({ message: 'Unable to rewrite the task right now. Please try again later.' });
+  }
+});
 
 // 1. GET all tasks
 app.get('/api/tasks', async (req, res) => {
