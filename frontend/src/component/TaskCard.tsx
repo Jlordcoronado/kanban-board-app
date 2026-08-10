@@ -90,23 +90,30 @@ export const TaskCard = ({
           >
             Edit
           </button>
-          {columns
-            ? columns
+          {columns && columns.length > 1 && (
+            <select
+              className="cursor-pointer rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs font-medium text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] focus:outline-none"
+              value=""
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                if (e.target.value) {
+                  moveTask(task.id, e.target.value);
+                }
+              }}
+            >
+              <option value="" disabled>
+                Move to...
+              </option>
+              {columns
                 .filter((col) => col.id !== status)
                 .map((col) => (
-                  <button
-                    key={col.id}
-                    type="button"
-                    className={actionBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      moveTask(task.id, col.id);
-                    }}
-                  >
+                  <option key={col.id} value={col.id}>
                     {col.title}
-                  </button>
-                ))
-            : null}
+                  </option>
+                ))}
+            </select>
+          )}
         </div>
         <button
           type="button"

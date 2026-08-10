@@ -41,6 +41,9 @@ function Home({ theme, onToggleTheme }: HomeProps) {
     loadTasks();
   }, []);
 
+  const MAX_COLUMNS = 7;
+  const isMaxColumnsReached = columns.length >= MAX_COLUMNS;
+
   const handleRenameColumn = (id: string, newTitle: string) => {
     const sanitized = newTitle.trim();
     if (!sanitized) return;
@@ -52,7 +55,7 @@ function Home({ theme, onToggleTheme }: HomeProps) {
 
   const handleAddColumn = (title: string) => {
     const sanitized = title.trim();
-    if (!sanitized) return;
+    if (!sanitized || columns.length >= MAX_COLUMNS) return;
 
     const newId = `col-${Date.now()}`;
     setColumns((prev) => [...prev, { id: newId, title: sanitized }]);
@@ -166,8 +169,14 @@ function Home({ theme, onToggleTheme }: HomeProps) {
           </button>
           <button
             type="button"
-            className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-xs font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-            onClick={() => setIsAddColumnOpen(true)}
+            className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-semibold transition-colors ${
+              isMaxColumnsReached
+                ? 'cursor-not-allowed border-[var(--border-subtle)] bg-[var(--surface)] text-[var(--text-muted)] opacity-50'
+                : 'cursor-pointer border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+            }`}
+            onClick={() => !isMaxColumnsReached && setIsAddColumnOpen(true)}
+            disabled={isMaxColumnsReached}
+            title={isMaxColumnsReached ? 'Maximum limit of 7 columns reached' : 'Add a new column'}
           >
             + Column
           </button>
@@ -229,16 +238,22 @@ function Home({ theme, onToggleTheme }: HomeProps) {
           />
         ))}
 
-        <button
-          type="button"
-          onClick={() => setIsAddColumnOpen(true)}
-          className="flex min-h-80 flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--surface-raised)] hover:text-[var(--accent)] cursor-pointer"
-        >
-          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-          </svg>
-          Add Column
-        </button>
+        {!isMaxColumnsReached ? (
+          <button
+            type="button"
+            onClick={() => setIsAddColumnOpen(true)}
+            className="flex min-h-80 flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--surface-raised)] hover:text-[var(--accent)] cursor-pointer"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Column
+          </button>
+        ) : (
+          <div className="flex min-h-80 flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-[var(--border-subtle)] bg-[var(--surface)]/50 p-6 text-center text-xs font-medium text-[var(--text-muted)] opacity-60">
+            <span>Max 7 columns reached</span>
+          </div>
+        )}
       </div>
 
       {newTaskStatus !== null && (

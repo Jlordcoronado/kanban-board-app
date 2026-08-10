@@ -21,12 +21,20 @@ app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof SyntaxError && 'status' in err && (err as any).status === 400 && 'body' in err) {
+    return res.status(400).json({ message: 'Invalid JSON payload' });
+  }
+
+  next(err);
+});
+
 // The model (Interface)
 interface Task {
   id: string;
   title: string;
   description: string;
-  status: 'todo' | 'in progress' | 'done';
+  status: string;
   priority: Priority;
   startedAt: string | null;
   dueDate: string | null;
@@ -68,6 +76,19 @@ function mapTask(row: TaskRow): Task {
   };
 }
 
+function isTaskStatus(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function resolveTaskString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function resolveTaskOptionalString(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  return typeof value === 'string' ? value : undefined;
+}
+
 const rewriteTaskSchema = z.object({
   text: z.string().trim().min(1, 'Text is required').max(3_000, 'Text must be 3,000 characters or fewer'),
 });
@@ -106,7 +127,7 @@ async function startServer() {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT,
-      status TEXT CHECK(status IN ('todo', 'in progress', 'done')) DEFAULT 'todo',
+      status TEXT DEFAULT 'todo',
       priority TEXT CHECK(priority IN ('low', 'medium', 'high')) DEFAULT 'medium'
     )
   `);
@@ -130,6 +151,30 @@ async function startServer() {
     if (!(await columnExists('tasks', column))) {
       await db.exec(`ALTER TABLE tasks ADD COLUMN ${column} ${definition}`);
     }
+  }
+
+  // Migrate: remove status CHECK constraint from existing databases so custom columns work.
+  const tableInfo = await db.get<{ sql: string }>(`SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'`);
+  if (tableInfo?.sql && tableInfo.sql.includes("CHECK(status IN")) {
+    console.log('Migrating tasks table to remove status CHECK constraint...');
+    await db.exec(`
+      BEGIN TRANSACTION;
+      CREATE TABLE tasks_new (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT DEFAULT 'todo',
+        priority TEXT CHECK(priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
+        started_at TEXT,
+        due_date TEXT,
+        expected_finish_at TEXT
+      );
+      INSERT INTO tasks_new SELECT id, title, description, status, priority, started_at, due_date, expected_finish_at FROM tasks;
+      DROP TABLE tasks;
+      ALTER TABLE tasks_new RENAME TO tasks;
+      COMMIT;
+    `);
+    console.log('Migration complete.');
   }
 
   console.log('Database connected and table ready.');
@@ -197,14 +242,27 @@ app.get('/api/tasks', async (req, res) => {
 
 // 2. POST a new task
 app.post('/api/tasks', async (req, res) => {
-  const { title, description, status, priority, startedAt, dueDate, expectedFinishAt } = req.body;
+  const body = req.body ?? {};
+  const rawBody = body as Record<string, unknown>;
+
+  const title = typeof rawBody.title === 'string' ? rawBody.title.trim() : '';
+  const description = resolveTaskString(rawBody.description);
+  const status = isTaskStatus(rawBody.status) ? rawBody.status : undefined;
+  const priority = isPriority(rawBody.priority) ? rawBody.priority : undefined;
+  const startedAt = resolveTaskOptionalString(rawBody.startedAt);
+  const dueDate = resolveTaskOptionalString(rawBody.dueDate);
+  const expectedFinishAt = resolveTaskOptionalString(rawBody.expectedFinishAt);
 
   if (!title) {
     return res.status(400).json({ message: 'Title is required' });
   }
 
-  if (priority !== undefined && !isPriority(priority)) {
+  if (rawBody.priority !== undefined && priority === undefined) {
     return res.status(400).json({ message: 'Priority must be low, medium, or high' });
+  }
+
+  if (rawBody.status !== undefined && status === undefined) {
+    return res.status(400).json({ message: 'Status must be todo, in progress, or done' });
   }
 
   for (const value of [startedAt, dueDate, expectedFinishAt]) {
@@ -216,9 +274,9 @@ app.post('/api/tasks', async (req, res) => {
   const newTask: Task = {
     id: uuidv4(),
     title,
-    description: description || '',
-    status: status || 'todo',
-    priority: priority || 'medium',
+    description,
+    status: status ?? 'todo',
+    priority: priority ?? 'medium',
     startedAt: startedAt ?? null,
     dueDate: dueDate ?? null,
     expectedFinishAt: expectedFinishAt ?? null,
@@ -249,10 +307,23 @@ app.post('/api/tasks', async (req, res) => {
 // 3. PUT (Update) an existing task
 app.put('/api/tasks/:id', async (req, res) => {
   const { id } = req.params;
-  const { title, description, status, priority, startedAt, dueDate, expectedFinishAt } = req.body;
+  const body = req.body ?? {};
+  const rawBody = body as Record<string, unknown>;
 
-  if (priority !== undefined && !isPriority(priority)) {
+  const title = typeof rawBody.title === 'string' ? rawBody.title : undefined;
+  const description = typeof rawBody.description === 'string' ? rawBody.description : undefined;
+  const status = isTaskStatus(rawBody.status) ? rawBody.status : undefined;
+  const priority = isPriority(rawBody.priority) ? rawBody.priority : undefined;
+  const startedAt = resolveTaskOptionalString(rawBody.startedAt);
+  const dueDate = resolveTaskOptionalString(rawBody.dueDate);
+  const expectedFinishAt = resolveTaskOptionalString(rawBody.expectedFinishAt);
+
+  if (rawBody.priority !== undefined && priority === undefined) {
     return res.status(400).json({ message: 'Priority must be low, medium, or high' });
+  }
+
+  if (rawBody.status !== undefined && status === undefined) {
+    return res.status(400).json({ message: 'Status must be todo, in progress, or done' });
   }
 
   for (const value of [startedAt, dueDate, expectedFinishAt]) {

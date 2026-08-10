@@ -4,8 +4,8 @@ A full-stack Kanban board application built with React, TypeScript, Express, and
 
 ## Features
 
-- **Dynamic Columns** — Add, rename, and delete columns (not limited to To Do / In Progress / Done)
-- **Drag & Drop** — Move tasks between columns by dragging
+- **Dynamic Columns** — Add, rename, and delete columns (up to 7 max)
+- **Drag & Drop + Move Dropdown** — Drag tasks between columns or use the quick "Move to..." dropdown on each card
 - **In-Column Task Creation** — Add tasks directly inside any column via a modal
 - **Edit Task Modal** — Update title, description, priority, dates, and move tasks between columns
 - **Priority Levels** — Tag tasks as Low, Medium, or High
@@ -127,6 +127,7 @@ The endpoint is limited to three requests per IP address per 10-minute window. I
 - [ ] Client-side review flow for AI rewrites
 - [x] Cloud deployment with live demo
 - [ ] Drag-and-drop column reordering
+- [x] Task card "Move to..." dropdown & 7-column board limit
 
 ## Author
 

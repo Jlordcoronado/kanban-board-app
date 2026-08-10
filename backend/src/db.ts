@@ -41,7 +41,7 @@ async function migrate(): Promise<void> {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT,
-      status TEXT CHECK(status IN ('todo', 'in progress', 'done')) DEFAULT 'todo',
+      status TEXT DEFAULT 'todo',
       priority TEXT CHECK(priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
       started_at TEXT,
       due_date TEXT,

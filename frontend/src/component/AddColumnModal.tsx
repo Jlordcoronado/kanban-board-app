@@ -39,6 +39,11 @@ export function AddColumnModal({ existingTitles, onAddColumn, onClose }: AddColu
       return;
     }
 
+    if (existingTitles.length >= 7) {
+      setError('Maximum limit of 7 columns reached.');
+      return;
+    }
+
     const isDuplicate = existingTitles.some(
       (t) => t.toLowerCase() === sanitizedTitle.toLowerCase()
     );
