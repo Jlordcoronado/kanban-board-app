@@ -1,134 +1,124 @@
-# Kanban Desk
+# 📋 Personal Kanban Desk
 
-A full-stack Kanban board application built with React, TypeScript, Express, and SQLite. Organize your tasks with drag-and-drop columns, custom modals, and a clean dark/light theme.
+> A modern, full-stack workflow management web application built with **React 19**, **TypeScript**, **Tailwind CSS v4**, **Node.js/Express**, and **SQLite**. 
 
-## Features
+---
 
-- **Dynamic Columns** — Add, rename, and delete columns (up to 7 max)
-- **Drag & Drop + Move Dropdown** — Drag tasks between columns or use the quick "Move to..." dropdown on each card
-- **In-Column Task Creation** — Add tasks directly inside any column via a modal
-- **Edit Task Modal** — Update title, description, priority, dates, and move tasks between columns
-- **Priority Levels** — Tag tasks as Low, Medium, or High
-- **Date Tracking** — Set Started, Due Date, and Expected Finish timestamps
-- **Dark / Light Theme** — Toggle between themes with a single click
-- **Delete All Tasks** — Clear your board with a confirmation modal
-- **Input Validation** — Length limits, duplicate checks, and sanitized inputs
-- **Custom Modals** — No native browser alerts or prompts; all interactions use custom UI
-- **Responsive Design** — Works on desktop and tablet screen sizes
-- **AI Task Rewriting API** — Optionally rewrite task text with Gemini before saving it
+## 🎯 Executive Summary & Purpose
 
-## Tech Stack
+**Personal Kanban Desk** is an intuitive visual task management platform designed to help professionals, teams, and freelancers organize work, track deadlines, and maintain focus.
 
-| Layer | Technology |
-|:---|:---|
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4 |
-| Backend | Node.js, Express, TypeScript, Google Gen AI SDK |
-| Database | SQLite (via `sqlite` and `sqlite3`) |
-| Validation | Zod |
+Built from the ground up to showcase **production-grade engineering practices**, this application combines a sleek, responsive user interface with reliable backend data persistence and enterprise-level AI capabilities.
 
-## Project Structure
+### 🌟 Why This Project Stands Out
+
+- 👔 **Business Value First**: Clear, intuitive UI designed for non-technical users to manage complex workflows effortlessly.
+- ⚡ **Modern Full-Stack Architecture**: Strictly typed TypeScript frontend and backend for high code reliability and zero runtime type errors.
+- 🤖 **Integrated AI Assistance**: Built-in Google Gemini AI integration to rewrite raw task notes into clear, professional task descriptions.
+- 🛡️ **Production-Ready Security**: Backend API key isolation, client-side input sanitization, rate-limiting, and CORS control.
+
+---
+
+## ✨ Key Features & User Capabilities
+
+### 📌 Core Task & Board Management
+- **Dynamic Columns (Max 7)**: Add, rename, or remove custom status columns (e.g. *Backlog*, *In Progress*, *Testing*, *Production*) to fit any project workflow.
+- **Dual Column Move Options**: Move tasks across columns using **intuitive Drag & Drop** or a quick **"Move to..." dropdown selector** on each card.
+- **Simplified Date Tracking**: Set clean **Started**, **Due Date**, and **Expected Finish** dates (`YYYY-MM-DD`) without dealing with tedious time pickers.
+- **Priority Categorization**: Color-coded badges for **Low**, **Medium**, and **High** priority items.
+- **Overdue Badges**: Visual warnings automatically highlight tasks that pass their due date.
+
+### 🎨 User Experience & Design
+- **Dark & Light Themes**: Instant 1-click theme switching using custom CSS tokens tailored for low eye strain.
+- **Zero Browser Alert Artifacts**: 100% custom modal dialogs for task creation, column editing, and destructive actions.
+- **Responsive Layout**: Designed for seamless use across desktop monitors, laptops, and tablet devices.
+
+### 🤖 Smart AI Enhancement
+- **AI Task Rewriter**: Integrated with Google Gemini 3.1 Flash Lite to automatically convert rough, informal notes into concise, professional task descriptions before saving.
+
+---
+
+## 🛠️ Technology Stack & System Architecture
 
 ```
 kanban-board-app/
-├── backend/          # Express API server
+├── backend/                  # Express REST API Server
 │   └── src/
-│       └── index.ts        # API routes, SQLite setup, and server entry
-├── frontend/         # React client
+│       ├── index.ts          # API routes, SQLite migrations & GenAI SDK
+│       ├── db.ts             # Database connection & schema setup
+│       ├── schemas.ts        # Zod validation schemas
+│       └── middleware.ts     # Request validation & rate limiting
+├── frontend/                 # React 19 Client SPA
 │   └── src/
-│       ├── pages/
-│       │   └── Home.tsx          # Main Kanban board page
-│       ├── component/
-│       │   ├── KanbanColumn.tsx      # Column with drag-drop & inline rename
-│       │   ├── TaskCard.tsx          # Individual task card
-│       │   ├── TaskModal.tsx         # Create & edit task modal
-│       │   ├── AddColumnModal.tsx    # Add new column modal
-│       │   └── ConfirmDeleteModal.tsx # Delete confirmation modal
-│       └── types/
-│           └── task.ts           # Task & Column type definitions
+│       ├── pages/Home.tsx    # Main Kanban board interactive canvas
+│       ├── component/        # Modular UI components (TaskCard, TaskModal, etc.)
+│       └── types/task.ts     # Shared TypeScript interfaces
 └── README.md
 ```
 
-## Run Locally
+| Layer | Technology | Engineering Highlights |
+|:---|:---|:---|
+| **Frontend** | React 19, TypeScript, Vite | CSS-first Tailwind CSS v4, custom state hooks, accessible modal dialogs |
+| **Backend API** | Node.js, Express, TypeScript | RESTful route architecture, centralized error handling |
+| **Database** | SQLite3, `sqlite` | Persistent local file storage, automated table migrations |
+| **Validation & AI** | Zod, `@google/genai` | Strict payload schema validation, rate-limited AI endpoints |
 
-### Prerequisites
+---
 
-- Node.js 18+
-- npm
+## 🔒 Security & Best Practices
 
-### Backend
+1. **API Key Security**: The Google Gemini API key remains strictly on the Node.js backend. It is never exposed to client browsers or source code repositories.
+2. **Rate Limiting**: AI rewrite endpoints enforce IP-based rate limiting (max 3 requests per 10 minutes) to prevent service misuse and API quota exhaustion.
+3. **Database Integrity**: Automated SQLite migrations safely handle schema updates (such as column additions) without data loss or downtime.
 
+---
+
+## 🔌 API Reference Summary
+
+| Method | Endpoint | Description | Status Code |
+|:---|:---|:---|:---|
+| `GET` | `/api/tasks` | Retrieve all board tasks | `200 OK` |
+| `POST` | `/api/tasks` | Create a new task | `201 Created` |
+| `PUT` | `/api/tasks/:id` | Update task details or move status | `200 OK` |
+| `DELETE` | `/api/tasks/:id` | Remove a single task | `204 No Content` |
+| `DELETE` | `/api/tasks` | Clear all tasks from the board | `204 No Content` |
+| `POST` | `/api/ai/rewrite-task` | AI-assisted task text refactoring | `200 OK` / `429 Too Many Requests` |
+
+---
+
+## 🚀 Quick Start (Running Locally)
+
+### 1. Prerequisites
+- Node.js 18+ installed
+
+### 2. Backend Setup
 ```bash
 cd backend
 npm install
 npm run dev
 ```
+*The API server will launch at `http://localhost:5000`.*
 
-The API server starts at `http://localhost:5000`.
-
-### Gemini configuration (optional)
-
-To enable task rewriting, create `backend/.env` with your Gemini API key:
-
+#### *(Optional)* Enable AI Task Rewriting
+Create a `.env` file in the `backend/` directory:
 ```env
-GEMINI_API_KEY=your_key_here
-# Optional; this is the default model.
-GEMINI_MODEL=gemini-3.1-flash-lite
+GEMINI_API_KEY=your_actual_gemini_api_key_here
 ```
 
-Keep `.env` private. The API key is used only by the backend and must never be added to frontend variables, source code, screenshots, or commits.
-
-### Frontend
-
+### 3. Frontend Setup
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+*The web client will launch at `http://localhost:5173`.*
 
-The app opens at `http://localhost:5173`.
+---
 
-## API Endpoints
+## 👨‍💻 Developer & Author
 
-| Method | Endpoint | Description |
-|:---|:---|:---|
-| `GET` | `/api/tasks` | Get all tasks |
-| `POST` | `/api/tasks` | Create a new task |
-| `PUT` | `/api/tasks/:id` | Update a task |
-| `DELETE` | `/api/tasks/:id` | Delete a task |
-| `DELETE` | `/api/tasks` | Delete all tasks |
-| `POST` | `/api/ai/rewrite-task` | Rewrite task text with Gemini without saving it |
+**Jaylord Coronado**  
+*Full-Stack Developer specializing in React, TypeScript, Node.js, and Modern Web Architecture.*
 
-### Rewrite a task with Gemini
-
-Send a JSON body containing up to 3,000 characters of task text:
-
-```bash
-curl -sS -X POST http://localhost:5000/api/ai/rewrite-task \
-  -H 'Content-Type: application/json' \
-  -d '{"text":"fix the login screen bug where the submit button overlaps the error message on phones"}'
-```
-
-Successful responses contain a reviewed-but-not-persisted result:
-
-```json
-{"rewrittenText":"Fix the mobile login screen so the submit button does not overlap the error message."}
-```
-
-The endpoint is limited to three requests per IP address per 10-minute window. It returns `400` for invalid input, `429` when the limit is reached, `503` when Gemini is not configured, and `502` if Gemini cannot provide a rewrite.
-
-## Deployment
-
-`render.yaml` defines a Docker-based backend and a static frontend service. In the Render dashboard, set `GEMINI_API_KEY` on the backend service before using the rewrite endpoint. Keep it secret; do not set it on the frontend service.
-
-## Roadmap
-
-- [ ] User authentication (JWT)
-- [x] Gemini-powered task rewriting API
-- [ ] Client-side review flow for AI rewrites
-- [x] Cloud deployment with live demo
-- [ ] Drag-and-drop column reordering
-- [x] Task card "Move to..." dropdown & 7-column board limit
-
-## Author
-
-**Jaylord Coronado** — [GitHub](https://github.com/Jlordcoronado)
+- **GitHub**: [github.com/Jlordcoronado](https://github.com/Jlordcoronado)
+- **Portfolio / Live Demo**: Available upon request / Render Cloud Deployment
