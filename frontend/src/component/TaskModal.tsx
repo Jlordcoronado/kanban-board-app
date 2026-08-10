@@ -19,18 +19,17 @@ const inputClass =
 const btnBase =
   'cursor-pointer rounded-md border px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]';
 
-function toDateTimeLocal(value: string | null): string {
+function toDateInputString(value: string | null): string {
   if (!value) return '';
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
 
-  const localTime = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return localTime.toISOString().slice(0, 16);
+  return date.toISOString().slice(0, 10);
 }
 
-function toIsoOrNull(value: string): string | null {
-  return value ? new Date(value).toISOString() : null;
+function toDateOrNull(value: string): string | null {
+  return value ? value : null;
 }
 
 export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
@@ -38,10 +37,10 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
   const [description, setDescription] = useState(task.description);
   const [status, setStatus] = useState<string>(task.status);
   const [priority, setPriority] = useState<Task['priority']>(task.priority);
-  const [startedAt, setStartedAt] = useState(toDateTimeLocal(task.startedAt));
-  const [dueDate, setDueDate] = useState(toDateTimeLocal(task.dueDate));
+  const [startedAt, setStartedAt] = useState(toDateInputString(task.startedAt));
+  const [dueDate, setDueDate] = useState(toDateInputString(task.dueDate));
   const [expectedFinishAt, setExpectedFinishAt] = useState(
-    toDateTimeLocal(task.expectedFinishAt)
+    toDateInputString(task.expectedFinishAt)
   );
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -73,9 +72,9 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
         description,
         status,
         priority,
-        startedAt: toIsoOrNull(startedAt),
-        dueDate: toIsoOrNull(dueDate),
-        expectedFinishAt: toIsoOrNull(expectedFinishAt),
+        startedAt: toDateOrNull(startedAt),
+        dueDate: toDateOrNull(dueDate),
+        expectedFinishAt: toDateOrNull(expectedFinishAt),
       });
     } catch {
       setError('Unable to save this task. Please try again.');
@@ -179,7 +178,7 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
               Started
               <input
                 className={`${inputClass} mt-1.5`}
-                type="datetime-local"
+                type="date"
                 value={startedAt}
                 onChange={(event) => setStartedAt(event.target.value)}
               />
@@ -189,7 +188,7 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
               Due date
               <input
                 className={`${inputClass} mt-1.5`}
-                type="datetime-local"
+                type="date"
                 value={dueDate}
                 onChange={(event) => setDueDate(event.target.value)}
               />
@@ -199,7 +198,7 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
               Expected finish
               <input
                 className={`${inputClass} mt-1.5`}
-                type="datetime-local"
+                type="date"
                 value={expectedFinishAt}
                 onChange={(event) => setExpectedFinishAt(event.target.value)}
               />
