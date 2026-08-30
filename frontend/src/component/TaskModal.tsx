@@ -19,6 +19,8 @@ const inputClass =
 const btnBase =
   'cursor-pointer rounded-md border px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 function toDateInputString(value: string | null): string {
   if (!value) return '';
 
@@ -32,9 +34,23 @@ function toDateOrNull(value: string): string | null {
   return value ? value : null;
 }
 
+function buildRecommendedDescription(taskTitle: string): string {
+  const cleanedTitle = taskTitle.trim().replace(/\s+/g, ' ');
+
+  if (!cleanedTitle) {
+    return 'Add a title to generate a recommended description.';
+  }
+
+  const sentence = cleanedTitle.endsWith('.') ? cleanedTitle : `${cleanedTitle}.`;
+  return `${sentence} Define the intended outcome, practical next steps, and a clear way to verify the result.`;
+}
+
 export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
+  const [suggestedDescription, setSuggestedDescription] = useState(
+    buildRecommendedDescription(task.title)
+  );
   const [status, setStatus] = useState<string>(task.status);
   const [priority, setPriority] = useState<Task['priority']>(task.priority);
   const [startedAt, setStartedAt] = useState(toDateInputString(task.startedAt));
@@ -43,7 +59,9 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
     toDateInputString(task.expectedFinishAt)
   );
   const [error, setError] = useState('');
+  const [aiError, setAiError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isRewriting, setIsRewriting] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -53,6 +71,73 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isSaving, onClose]);
+
+  useEffect(() => {
+    setTitle(task.title);
+    setDescription(task.description);
+    setSuggestedDescription(buildRecommendedDescription(task.title));
+    setStatus(task.status);
+    setPriority(task.priority);
+    setStartedAt(toDateInputString(task.startedAt));
+    setDueDate(toDateInputString(task.dueDate));
+    setExpectedFinishAt(toDateInputString(task.expectedFinishAt));
+    setError('');
+    setAiError('');
+    setIsSaving(false);
+    setIsRewriting(false);
+  }, [task]);
+
+  useEffect(() => {
+    setSuggestedDescription(buildRecommendedDescription(title));
+    setAiError('');
+  }, [title]);
+
+  const handleRewrite = async () => {
+    const trimmedTitle = title.trim();
+
+    if (!trimmedTitle) {
+      setAiError('Add a task title before using Gemini.');
+      return;
+    }
+
+    setAiError('');
+    setIsRewriting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/ai/rewrite-task`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: trimmedTitle }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Gemini rewrite request failed');
+      }
+
+      const data: unknown = await response.json();
+      const suggestion =
+        typeof data === 'object' &&
+        data !== null &&
+        'suggestedDescription' in data &&
+        typeof data.suggestedDescription === 'string'
+          ? data.suggestedDescription.trim()
+          : '';
+
+      if (!suggestion) {
+        throw new Error('Gemini returned an empty suggestion');
+      }
+
+      setSuggestedDescription(suggestion);
+    } catch {
+      setAiError('Gemini is unavailable. Please try again later.');
+    } finally {
+      setIsRewriting(false);
+    }
+  };
+
+  const applySuggestedDescription = () => {
+    setDescription(suggestedDescription);
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -135,11 +220,56 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
               className={`${inputClass} mt-1.5 min-h-24 resize-y`}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Description (optional)"
+              placeholder={suggestedDescription}
               maxLength={2000}
               rows={3}
             />
           </label>
+
+          <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-4 shadow-[var(--shadow-sm)]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,#8ab4ff_0%,#7c5cff_45%,#48d0b7_100%)] text-[#fff] shadow-[0_8px_20px_rgba(80,104,176,0.18)]">
+                  <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M12 3l1.6 4.8L18.4 9.4l-4.8 1.5L12 15.7l-1.6-4.8L5.6 9.4l4.8-1.6L12 3Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-[var(--text)]">Gemini suggestion</h3>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Create a description from the current title
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="cursor-pointer rounded-md border border-[var(--accent)] bg-[var(--accent)] px-2.5 py-1.5 text-xs font-semibold text-[#faf8f5] transition-colors hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={handleRewrite}
+                  disabled={isSaving || isRewriting}
+                >
+                  {isRewriting ? 'Rewriting...' : 'Rewrite with Gemini'}
+                </button>
+                <button
+                  type="button"
+                  className="cursor-pointer rounded-md border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-xs font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={applySuggestedDescription}
+                  disabled={isSaving || isRewriting || !suggestedDescription.trim()}
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+            {aiError && (
+              <p className="mt-3 text-xs font-medium text-[var(--danger)]" role="alert">
+                {aiError}
+              </p>
+            )}
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             {columns && columns.length > 0 && (
@@ -233,4 +363,3 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
     </div>
   );
 }
-

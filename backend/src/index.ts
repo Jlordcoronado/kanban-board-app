@@ -90,7 +90,7 @@ function resolveTaskOptionalString(value: unknown): string | null | undefined {
 }
 
 const rewriteTaskSchema = z.object({
-  text: z.string().trim().min(1, 'Text is required').max(3_000, 'Text must be 3,000 characters or fewer'),
+  title: z.string().trim().min(1, 'Task title is required').max(200, 'Task title must be 200 characters or fewer'),
 });
 
 function getAiRateLimit(ip: string): number | null {
@@ -185,7 +185,7 @@ async function startServer() {
 
 // API Routes
 
-// Rewrites task text without persisting changes. The frontend will let the user review it first.
+// Generates a suggested description without persisting task changes.
 app.post('/api/ai/rewrite-task', async (req, res) => {
   const parsedBody = rewriteTaskSchema.safeParse(req.body);
 
@@ -210,20 +210,20 @@ app.post('/api/ai/rewrite-task', async (req, res) => {
     const client = new GoogleGenAI({ apiKey });
     const response = await client.models.generateContent({
       model: process.env.GEMINI_MODEL ?? 'gemini-3.1-flash-lite',
-      contents: parsedBody.data.text,
+      contents: parsedBody.data.title,
       config: {
         systemInstruction:
-          'Rewrite only the provided Kanban task text into a concise, clear, professional task description. Preserve the original intent. Do not invent requirements, names, deadlines, steps, or technical facts. Return plain text only: no title, labels, bullets, quotation marks, or explanation.',
+          'Create a concise, clear, professional Kanban task description from the provided task title. State the intended outcome and general next steps, but do not invent names, deadlines, requirements, technical facts, or details not implied by the title. Return plain text only: no title, labels, bullets, quotation marks, or explanation.',
         temperature: 0.2,
       },
     });
-    const rewrittenText = response.text?.trim() ?? '';
+    const suggestedDescription = response.text?.trim() ?? '';
 
-    if (!rewrittenText) {
-      return res.status(502).json({ message: 'AI did not return a rewrite. Please try again.' });
+    if (!suggestedDescription) {
+      return res.status(502).json({ message: 'AI did not return a suggestion. Please try again.' });
     }
 
-    res.json({ rewrittenText });
+    res.json({ suggestedDescription });
   } catch (error) {
     console.error('AI task rewrite failed:', error);
     res.status(502).json({ message: 'Unable to rewrite the task right now. Please try again later.' });

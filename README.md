@@ -14,7 +14,7 @@ Built from the ground up to showcase **production-grade engineering practices**,
 
 - 👔 **Business Value First**: Clear, intuitive UI designed for non-technical users to manage complex workflows effortlessly.
 - ⚡ **Modern Full-Stack Architecture**: Strictly typed TypeScript frontend and backend for high code reliability and zero runtime type errors.
-- 🤖 **Integrated AI Assistance**: Built-in Google Gemini AI integration to rewrite raw task notes into clear, professional task descriptions.
+- 🤖 **Integrated AI Assistance**: Built-in Google Gemini AI can generate a suggested task description from a task title, while the user remains in control of whether to apply it.
 - 🛡️ **Production-Ready Security**: Backend API key isolation, client-side input sanitization, rate-limiting, and CORS control.
 
 ---
@@ -34,7 +34,9 @@ Built from the ground up to showcase **production-grade engineering practices**,
 - **Responsive Layout**: Designed for seamless use across desktop monitors, laptops, and tablet devices.
 
 ### 🤖 Smart AI Enhancement
-- **AI Task Rewriter**: Integrated with Google Gemini 3.1 Flash Lite to automatically convert rough, informal notes into concise, professional task descriptions before saving.
+- **Title-Based Description Suggestion**: Gemini generates a concise, professional description from the current task title.
+- **User-Controlled Apply Step**: A suggestion appears in the description placeholder and is copied into the field only when the user selects **Apply**. It never saves or overwrites a task automatically.
+- **Graceful Fallback**: A basic local suggestion remains available when Gemini is not configured, rate-limited, or temporarily unavailable.
 
 ---
 
@@ -45,9 +47,6 @@ kanban-board-app/
 ├── backend/                  # Express REST API Server
 │   └── src/
 │       ├── index.ts          # API routes, SQLite migrations & GenAI SDK
-│       ├── db.ts             # Database connection & schema setup
-│       ├── schemas.ts        # Zod validation schemas
-│       └── middleware.ts     # Request validation & rate limiting
 ├── frontend/                 # React 19 Client SPA
 │   └── src/
 │       ├── pages/Home.tsx    # Main Kanban board interactive canvas
@@ -82,7 +81,7 @@ kanban-board-app/
 | `PUT` | `/api/tasks/:id` | Update task details or move status | `200 OK` |
 | `DELETE` | `/api/tasks/:id` | Remove a single task | `204 No Content` |
 | `DELETE` | `/api/tasks` | Clear all tasks from the board | `204 No Content` |
-| `POST` | `/api/ai/rewrite-task` | AI-assisted task text refactoring | `200 OK` / `429 Too Many Requests` |
+| `POST` | `/api/ai/rewrite-task` | Generate a description suggestion from `{ "title": "..." }` | `200 OK` / `429 Too Many Requests` / `503 Service Unavailable` |
 
 ---
 
@@ -99,11 +98,13 @@ npm run dev
 ```
 *The API server will launch at `http://localhost:5000`.*
 
-#### *(Optional)* Enable AI Task Rewriting
+#### *(Optional)* Enable Gemini Suggestions
 Create a `.env` file in the `backend/` directory:
 ```env
 GEMINI_API_KEY=your_actual_gemini_api_key_here
 ```
+
+For Render or another host, add `GEMINI_API_KEY` to the backend service's environment variables instead of uploading or committing the `.env` file. The feature will show an unavailable message if the key is missing, the service is rate-limited, or Gemini cannot respond.
 
 ### 3. Frontend Setup
 ```bash
@@ -112,6 +113,11 @@ npm install
 npm run dev
 ```
 *The web client will launch at `http://localhost:5173`.*
+
+For a deployed frontend, configure `VITE_API_URL` with the public backend URL and rebuild the frontend:
+```env
+VITE_API_URL=https://your-backend-service.onrender.com
+```
 
 ---
 

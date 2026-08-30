@@ -21,6 +21,12 @@ VITE_API_URL=https://your-api.example.com
 
 Never put `GEMINI_API_KEY` or another secret in this frontend directory or in a `VITE_*` variable. The backend owns all Gemini requests.
 
+## Gemini suggestions
+
+The task editor always shows a basic title-based description placeholder. Selecting **Rewrite with Gemini** sends the current title to the backend, which can replace that placeholder with an AI-generated suggestion. **Apply** copies the current suggestion into the Description field; it does not save the task.
+
+For deployed environments, set `VITE_API_URL` to the public backend URL and rebuild the frontend. Configure `GEMINI_API_KEY` only on the backend service. If the backend is unavailable, rate-limited, or missing its Gemini configuration, the editor shows a retry-later message and keeps the local placeholder.
+
 ## Commands
 
 ```bash

@@ -39,7 +39,7 @@ function Home({ theme, onToggleTheme }: HomeProps) {
     };
 
     loadTasks();
-  }, []);
+  }, [API_URL]);
 
   const MAX_COLUMNS = 7;
   const isMaxColumnsReached = columns.length >= MAX_COLUMNS;
@@ -317,5 +317,3 @@ function Home({ theme, onToggleTheme }: HomeProps) {
 }
 
 export default Home;
-
-
