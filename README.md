@@ -43,6 +43,9 @@ The frontend runs at `http://localhost:5173` and the backend at `http://localhos
 ## Optional Gemini suggestions
 
 Add `GEMINI_API_KEY` to `backend/.env` to enable AI-generated description suggestions. Keep this key on the backend only—never put it in the frontend or commit it to Git.
+Screenshot sample
+<img width="1425" height="883" alt="image" src="https://github.com/user-attachments/assets/59049656-088d-41fe-b4f0-c4ed5d0de4c5" />
+
 
 ## Author
 
