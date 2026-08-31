@@ -31,6 +31,8 @@ Built from the ground up to showcase **production-grade engineering practices**,
 ### 🎨 User Experience & Design
 - **Dark & Light Themes**: Instant 1-click theme switching using custom CSS tokens tailored for low eye strain.
 - **Zero Browser Alert Artifacts**: 100% custom modal dialogs for task creation, column editing, and destructive actions.
+- **Friendly Task Details**: Opening an existing task shows its full, wrapped description in a scrollable modal. Click the title or description area to edit it, while status, priority, and date controls remain immediately available.
+- **Safe Task Updates**: Saving and discarding edits both require clear confirmation, so task details are never changed or lost by accident.
 - **Responsive Layout**: Designed for seamless use across desktop monitors, laptops, and tablet devices.
 
 ### 🤖 Smart AI Enhancement
