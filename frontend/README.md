@@ -2,24 +2,28 @@
 
 The React 19 and TypeScript client for Kanban Desk. It provides the board interface, task and column modals, drag-and-drop interactions, and light/dark theme.
 
+The frontend is a public client application. Keep backend secrets and private configuration outside this directory.
+
 ## Run locally
+
+From this directory, install dependencies and start the Vite development server:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Vite serves the application at `http://localhost:5173` by default. The frontend uses `http://localhost:5000` for the API when `VITE_API_URL` is not set.
+Vite serves the application at `http://localhost:5173` by default. Start the backend separately from `../backend`; the frontend uses `http://localhost:5000` for the API when `VITE_API_URL` is not set.
 
 ## Environment variables
 
-Use `VITE_API_URL` only for the public backend base URL, for example:
+Use `VITE_API_URL` only for a public backend base URL, for example:
 
 ```env
 VITE_API_URL=https://your-api.example.com
 ```
 
-Never put `GEMINI_API_KEY` or another secret in this frontend directory or in a `VITE_*` variable. The backend owns all Gemini requests.
+Never put `GEMINI_API_KEY` or another secret in this frontend directory or in any `VITE_*` variable. Values exposed through `VITE_*` are bundled into browser code. The backend owns all Gemini requests.
 
 ## Task editing
 
@@ -31,7 +35,7 @@ Selecting **Save changes** opens a confirmation before the frontend sends an upd
 
 The task editor always shows a basic title-based description placeholder. Selecting **Rewrite with Gemini** sends the current title to the backend, which can replace that placeholder with an AI-generated suggestion. **Apply** copies the current suggestion into the Description field; it does not save the task.
 
-For deployed environments, set `VITE_API_URL` to the public backend URL and rebuild the frontend. Configure `GEMINI_API_KEY` only on the backend service. If the backend is unavailable, rate-limited, or missing its Gemini configuration, the editor shows a retry-later message and keeps the local placeholder.
+For deployed environments, set `VITE_API_URL` to the public backend URL and rebuild the frontend. Configure `GEMINI_API_KEY` only on the backend service. If the backend is unavailable, rate-limited, or missing its Gemini configuration, the editor shows a retry-later message and keeps the local placeholder. The AI suggestion remains a user-reviewed draft until it is applied and saved.
 
 ## Commands
 

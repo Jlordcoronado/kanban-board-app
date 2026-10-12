@@ -52,12 +52,26 @@ export const KanbanColumn = ({
   return (
     <div
       className={`flex min-h-80 w-[19rem] shrink-0 flex-col overflow-hidden rounded-[10px] border border-[var(--border-subtle)] bg-[var(--surface)] transition-[border-color,box-shadow,background-color] ${isDragOver ? 'border-[var(--accent)] bg-[var(--surface-raised)] shadow-[inset_0_0_0_1px_var(--accent)]' : ''}`}
-      onDragOver={(e) => e.preventDefault()}
-      onDragEnter={() => setDragOverColumn(status)}
-      onDragLeave={() => setDragOverColumn(null)}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDragOverColumn(status);
+      }}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDragOverColumn(status);
+      }}
+      onDragLeave={(e) => {
+        const nextTarget = e.relatedTarget;
+        if (!(nextTarget instanceof Node) || !e.currentTarget.contains(nextTarget)) {
+          setDragOverColumn(null);
+        }
+      }}
       onDrop={(e) => {
+        e.preventDefault();
         const id = e.dataTransfer.getData('taskId');
-        moveTask(id, status);
+        if (id) moveTask(id, status);
         setDragOverColumn(null);
       }}
     >
@@ -135,14 +149,15 @@ export const KanbanColumn = ({
 
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
         {tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <p className="m-0 text-[0.85rem] text-[var(--text-muted)] italic">
-              No tasks here yet
+          <div className={`flex flex-col items-center justify-center rounded-md border border-dashed px-4 py-8 text-center transition-colors ${isDragOver ? 'border-[var(--accent)] bg-[var(--surface-raised)]' : 'border-[var(--border-subtle)]'}`}>
+            <p className="m-0 text-[0.85rem] font-medium text-[var(--text-muted)]">
+              {isDragOver ? 'Drop task here' : `Nothing in ${title}`}
             </p>
-            {onAddTask && (
+            {!isDragOver && <p className="mt-1 mb-0 text-xs text-[var(--text-muted)]">Add the next piece of work here.</p>}
+            {onAddTask && !isDragOver && (
               <button
                 type="button"
-                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--accent)] hover:underline cursor-pointer"
+                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--accent)] hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                 onClick={() => onAddTask(status)}
               >
                 + Add task
