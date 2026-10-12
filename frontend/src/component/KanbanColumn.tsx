@@ -51,7 +51,7 @@ export const KanbanColumn = ({
 
   return (
     <div
-      className={`flex max-h-[calc(100vh-16rem)] min-h-80 flex-col overflow-hidden rounded-[10px] border border-[var(--border-subtle)] bg-[var(--surface)] transition-[border-color,box-shadow,background-color] ${isDragOver ? 'border-[var(--accent)] bg-[var(--surface-raised)] shadow-[inset_0_0_0_1px_var(--accent)]' : ''}`}
+      className={`flex min-h-80 w-[19rem] shrink-0 flex-col overflow-hidden rounded-[10px] border border-[var(--border-subtle)] bg-[var(--surface)] transition-[border-color,box-shadow,background-color] ${isDragOver ? 'border-[var(--accent)] bg-[var(--surface-raised)] shadow-[inset_0_0_0_1px_var(--accent)]' : ''}`}
       onDragOver={(e) => e.preventDefault()}
       onDragEnter={() => setDragOverColumn(status)}
       onDragLeave={() => setDragOverColumn(null)}

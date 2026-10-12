@@ -146,8 +146,8 @@ function Home({ theme, onToggleTheme }: HomeProps) {
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-[1400px] px-5 py-6 md:px-8 md:py-8 md:pb-10">
-      <header className="mb-7 flex items-start justify-between gap-4 border-b border-[var(--border-subtle)] pb-5">
+    <div className="mx-auto min-h-screen max-w-[1400px] px-4 py-4 sm:px-5 sm:py-5 md:flex md:h-screen md:min-h-0 md:flex-col md:px-8 md:py-6">
+      <header className="mb-4 flex shrink-0 items-start justify-between gap-4 border-b border-[var(--border-subtle)] pb-4 md:mb-5">
         <div className="text-left">
           <h1 className="m-0 text-[1.65rem] font-bold tracking-tight text-[var(--text)]">
             Jlord.Dev
@@ -219,41 +219,43 @@ function Home({ theme, onToggleTheme }: HomeProps) {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-3 lg:grid-cols-4 md:gap-5">
-        {columns.map((col) => (
-          <KanbanColumn
-            key={col.id}
-            status={col.id}
-            title={col.title}
-            tasks={tasks.filter((t) => t.status === col.id)}
-            columns={columns}
-            moveTask={moveTask}
-            deleteTask={deleteTask}
-            dragOverColumn={dragOverColumn}
-            setDragOverColumn={setDragOverColumn}
-            openTask={setEditingTask}
-            onRenameColumn={handleRenameColumn}
-            onDeleteColumn={(id) => setDeletingColumnId(id)}
-            onAddTask={(status) => setNewTaskStatus(status)}
-          />
-        ))}
+      <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-5 sm:px-5 md:-mx-8 md:flex md:min-h-0 md:flex-1 md:px-8">
+        <div className="flex min-w-max items-start gap-4 md:flex-1 md:items-stretch md:gap-5">
+          {columns.map((col) => (
+            <KanbanColumn
+              key={col.id}
+              status={col.id}
+              title={col.title}
+              tasks={tasks.filter((t) => t.status === col.id)}
+              columns={columns}
+              moveTask={moveTask}
+              deleteTask={deleteTask}
+              dragOverColumn={dragOverColumn}
+              setDragOverColumn={setDragOverColumn}
+              openTask={setEditingTask}
+              onRenameColumn={handleRenameColumn}
+              onDeleteColumn={(id) => setDeletingColumnId(id)}
+              onAddTask={(status) => setNewTaskStatus(status)}
+            />
+          ))}
 
-        {!isMaxColumnsReached ? (
-          <button
-            type="button"
-            onClick={() => setIsAddColumnOpen(true)}
-            className="flex min-h-80 flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--surface-raised)] hover:text-[var(--accent)] cursor-pointer"
-          >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Add Column
-          </button>
-        ) : (
-          <div className="flex min-h-80 flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-[var(--border-subtle)] bg-[var(--surface)]/50 p-6 text-center text-xs font-medium text-[var(--text-muted)] opacity-60">
-            <span>Max 7 columns reached</span>
-          </div>
-        )}
+          {!isMaxColumnsReached ? (
+            <button
+              type="button"
+              onClick={() => setIsAddColumnOpen(true)}
+              className="flex min-h-80 w-[19rem] shrink-0 flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--surface-raised)] hover:text-[var(--accent)] cursor-pointer"
+            >
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Column
+            </button>
+          ) : (
+            <div className="flex min-h-80 w-[19rem] shrink-0 flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-[var(--border-subtle)] bg-[var(--surface)]/50 p-6 text-center text-xs font-medium text-[var(--text-muted)] opacity-60">
+              <span>Max 7 columns reached</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {newTaskStatus !== null && (

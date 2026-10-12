@@ -63,7 +63,7 @@ export const TaskCard = ({
         </div>
       </div>
       {task.description && (
-        <p className="m-0 text-[0.82rem] leading-snug text-[var(--text-muted)] break-words">
+        <p className="m-0 line-clamp-2 break-words text-[0.82rem] leading-snug text-[var(--text-muted)]">
           {task.description}
         </p>
       )}
@@ -129,4 +129,3 @@ export const TaskCard = ({
     </div>
   );
 };
-
