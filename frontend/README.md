@@ -1,6 +1,6 @@
 # Kanban Desk Frontend
 
-The React 19 and TypeScript client for Kanban Desk. It provides the board interface, task and column modals, drag-and-drop interactions, and light/dark theme.
+The React 19 and TypeScript client for Kanban Desk. It provides the board interface, task and column modals, drag-and-drop interactions, and light/dark theme. Task data is loaded from the backend; custom column definitions currently live in frontend state and reset when the page is refreshed.
 
 The frontend is a public client application. Keep backend secrets and private configuration outside this directory.
 
@@ -35,7 +35,7 @@ Selecting **Save changes** opens a confirmation before the frontend sends an upd
 
 The task editor always shows a basic title-based description placeholder. Selecting **Rewrite with Gemini** sends the current title to the backend, which can replace that placeholder with an AI-generated suggestion. **Apply** copies the current suggestion into the Description field; it does not save the task.
 
-For deployed environments, set `VITE_API_URL` to the public backend URL and rebuild the frontend. Configure `GEMINI_API_KEY` only on the backend service. If the backend is unavailable, rate-limited, or missing its Gemini configuration, the editor shows a retry-later message and keeps the local placeholder. The AI suggestion remains a user-reviewed draft until it is applied and saved.
+For deployed environments, set `VITE_API_URL` to the public backend URL and rebuild the frontend. Configure `GEMINI_API_KEY` only on the backend service; the current Render service configuration does not enable Gemini automatically. If the backend is unavailable, rate-limited, or missing its Gemini configuration, the editor shows a retry-later message and keeps the local placeholder. The AI suggestion remains a user-reviewed draft until it is applied and saved.
 
 ## Commands
 
@@ -46,4 +46,4 @@ npm run lint     # Run ESLint
 npm run preview  # Preview the production build locally
 ```
 
-For the complete product overview and backend API reference, see the [project README](../README.md).
+For the complete product overview and current deployment status, see the [project README](../README.md). Authentication and multi-user data isolation are not yet implemented, so the current demo uses a shared task board.

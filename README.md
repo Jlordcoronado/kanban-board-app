@@ -4,6 +4,8 @@
 
 Personal Kanban Desk is a full-stack task management application that helps people organise priorities, workflow stages, and deadlines in one focused workspace. This portfolio project demonstrates my ability to turn a practical product idea into a polished, maintainable web application.
 
+[Live demo](https://kanban-desk-frontend.onrender.com/)
+
 ![Personal Kanban Desk screenshot](https://github.com/user-attachments/assets/59049656-088d-41fe-b4f0-c4ed5d0de4c5)
 
 ## The problem it solves
@@ -12,7 +14,7 @@ When work is spread across notes, messages, and disconnected lists, it becomes d
 
 ## What users can do
 
-- Organise work across workflow columns that match the way they operate.
+- Organise work across workflow columns that match the way they operate during the current board session.
 - Create, edit, move, and delete tasks without leaving the board.
 - Track priority, start date, due date, and expected finish date.
 - Identify overdue work at a glance.
@@ -25,14 +27,14 @@ When work is spread across notes, messages, and disconnected lists, it becomes d
 ## Product decisions
 
 - **Clarity over clutter:** the board keeps the most important information visible while details remain available when needed.
-- **Flexible workflows:** users can create and rename columns instead of being forced into a fixed process.
+- **Flexible workflows:** users can create and rename columns instead of being forced into a fixed process; custom column definitions are currently held in the browser session.
 - **Safe editing:** unsaved changes are protected by clear confirmation flows.
 - **Human review for AI:** AI suggestions remain drafts until the user applies and saves them.
 - **Practical responsiveness:** the interface is designed to remain usable across different screen sizes.
 
 ## Project scope
 
-This project demonstrates the delivery of a complete product slice: a responsive interface, task and workflow management, persistent data, validation, and an optional AI-assisted workflow. It is intentionally focused on a reliable core experience rather than a collection of disconnected features.
+This project demonstrates the delivery of a complete product slice: a responsive interface, task and workflow management, SQLite-backed task persistence, validation, and an optional AI-assisted workflow. It is intentionally focused on a reliable core experience rather than a collection of disconnected features.
 
 ## Technical approach
 
@@ -65,7 +67,7 @@ The repository includes separate setup documentation for developers who want to 
 
 ## Current status
 
-The core Kanban experience is implemented. Planned product work includes authentication, multi-user data isolation, deployment, and further portfolio polish.
+The core Kanban experience is implemented. Deployed on Render (live demo). The current deployment is a shared demo without authentication or multi-user data isolation, and SQLite data may not persist through service replacement or redeployment. Planned product work includes authentication, durable production storage, stronger request failure handling, and further portfolio polish.
 
 ## Why this matters to clients and teams
 
