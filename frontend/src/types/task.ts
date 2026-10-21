@@ -7,10 +7,12 @@ export interface Task {
   startedAt: string | null;
   dueDate: string | null;
   expectedFinishAt: string | null;
+  workspaceId?: string;
+  archivedAt?: string | null;
+  archivedBy?: string | null;
 }
 
 export interface Column {
   id: string;
   title: string;
 }
-

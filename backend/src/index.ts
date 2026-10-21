@@ -1,71 +1,74 @@
-import express from 'express';
-import cors from 'cors';
-import { GoogleGenAI } from '@google/genai';
-import { v4 as uuidv4 } from 'uuid';
-import sqlite3 from 'sqlite3';
-import { open, Database } from 'sqlite';
-import { z } from 'zod';
 import 'dotenv/config';
+import cors from 'cors';
+import express from 'express';
+import { GoogleGenAI } from '@google/genai';
+import { createClient } from '@supabase/supabase-js';
+import {
+  taskSchema,
+  updateTaskSchema,
+  databaseFields,
+} from './taskValidation.js';
+import { invitationMailer } from './mail.js';
+import { z } from 'zod';
+import { getAuth, requireAuth } from './middleware.js';
 
-const app = express();
-const PORT = process.env.PORT || 5000;
-const DATABASE_PATH = process.env.DATABASE_PATH ?? './kanban.db';
-const priorities = ['low', 'medium', 'high'] as const;
+export const app = express();
+const PORT = Number(process.env.PORT ?? 5000);
 const AI_REWRITE_LIMIT = 3;
 const AI_REWRITE_WINDOW_MS = 10 * 60 * 1000;
 const aiRewriteRequests = new Map<string, number[]>();
-
-type Priority = (typeof priorities)[number];
-
-app.set('trust proxy', 1);
-app.use(cors());
-app.use(express.json());
-
-app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (err instanceof SyntaxError && 'status' in err && (err as any).status === 400 && 'body' in err) {
-    return res.status(400).json({ message: 'Invalid JSON payload' });
-  }
-
-  next(err);
+const invitationSchema = z.object({
+  email: z.string().email().max(255),
+  role: z.enum(['admin', 'member']).default('member'),
 });
 
-// The model (Interface)
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  priority: Priority;
-  startedAt: string | null;
-  dueDate: string | null;
-  expectedFinishAt: string | null;
-}
+app.set('trust proxy', 1);
+app.use(cors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' }));
+app.use(express.json());
 
-interface TaskRow {
+app.use(
+  (
+    err: unknown,
+    _req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
+    if (
+      err instanceof SyntaxError &&
+      'status' in err &&
+      (err as { status?: number }).status === 400
+    ) {
+      res.status(400).json({ message: 'Invalid JSON payload' });
+      return;
+    }
+    next(err);
+  }
+);
+
+const rewriteTaskSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+});
+
+type TaskRow = {
   id: string;
+  workspace_id: string;
+  created_by: string;
   title: string;
-  description: string;
-  status: Task['status'];
-  priority: Priority;
+  description: string | null;
+  status: string;
+  priority: 'low' | 'medium' | 'high';
   started_at: string | null;
   due_date: string | null;
   expected_finish_at: string | null;
-}
+  comment: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
+};
 
-// Database Setup
-let db: Database<sqlite3.Database, sqlite3.Statement>;
-
-function isPriority(value: unknown): value is Priority {
-  return typeof value === 'string' && priorities.includes(value as Priority);
-}
-
-function isDateValue(value: unknown): value is string | null {
-  return value === null || (typeof value === 'string' && !Number.isNaN(Date.parse(value)));
-}
-
-function mapTask(row: TaskRow): Task {
+function mapTask(row: TaskRow) {
   return {
     id: row.id,
+    workspaceId: row.workspace_id,
     title: row.title,
     description: row.description ?? '',
     status: row.status,
@@ -73,144 +76,506 @@ function mapTask(row: TaskRow): Task {
     startedAt: row.started_at,
     dueDate: row.due_date,
     expectedFinishAt: row.expected_finish_at,
+    comment: row.comment,
+    archivedAt: row.archived_at,
+    archivedBy: row.archived_by,
   };
 }
 
-function isTaskStatus(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
-}
-
-function resolveTaskString(value: unknown): string {
-  return typeof value === 'string' ? value : '';
-}
-
-function resolveTaskOptionalString(value: unknown): string | null | undefined {
-  if (value === null) return null;
-  return typeof value === 'string' ? value : undefined;
-}
-
-const rewriteTaskSchema = z.object({
-  title: z.string().trim().min(1, 'Task title is required').max(200, 'Task title must be 200 characters or fewer'),
-});
-
-function getAiRateLimit(ip: string): number | null {
+function getAiRateLimit(userId: string): number | null {
   const now = Date.now();
-  const recentRequests = (aiRewriteRequests.get(ip) ?? []).filter(
+  const recentRequests = (aiRewriteRequests.get(userId) ?? []).filter(
     (requestedAt) => now - requestedAt < AI_REWRITE_WINDOW_MS
   );
-
   if (recentRequests.length >= AI_REWRITE_LIMIT) {
-    aiRewriteRequests.set(ip, recentRequests);
-    return Math.ceil((AI_REWRITE_WINDOW_MS - (now - recentRequests[0]!)) / 1000);
+    aiRewriteRequests.set(userId, recentRequests);
+    return Math.ceil(
+      (AI_REWRITE_WINDOW_MS - (now - recentRequests[0]!)) / 1000
+    );
   }
-
   recentRequests.push(now);
-  aiRewriteRequests.set(ip, recentRequests);
+  aiRewriteRequests.set(userId, recentRequests);
   return null;
 }
 
-async function columnExists(table: string, column: string): Promise<boolean> {
-  const columns = await db.all<{ name: string }[]>(`PRAGMA table_info(${table})`);
-  return columns.some((item) => item.name === column);
-}
-
-async function startServer() {
-  // Open the database file (it will be created if it doesn't exist)
-  db = await open({
-    filename: DATABASE_PATH,
-    driver: sqlite3.Database,
-  });
-
-  // Create the tasks table if it doesn't exist
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS tasks (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      description TEXT,
-      status TEXT DEFAULT 'todo',
-      priority TEXT CHECK(priority IN ('low', 'medium', 'high')) DEFAULT 'medium'
-    )
-  `);
-
-  // Add priority to databases created before Phase 2 without removing existing tasks.
-  if (!(await columnExists('tasks', 'priority'))) {
-    await db.exec(
-      "ALTER TABLE tasks ADD COLUMN priority TEXT CHECK(priority IN ('low', 'medium', 'high')) DEFAULT 'medium'"
-    );
+async function getWorkspaceId(req: express.Request): Promise<string | null> {
+  const { user, supabase } = getAuth(req);
+  const requestedWorkspaceId = req.header('x-workspace-id');
+  if (requestedWorkspaceId) z.string().uuid().parse(requestedWorkspaceId);
+  if (!requestedWorkspaceId) {
+    const { data, error } = await supabase
+      .from('workspaces')
+      .select('id')
+      .eq('owner_id', user.id)
+      .eq('kind', 'personal')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.id ?? null;
   }
 
-  await db.run("UPDATE tasks SET priority = 'medium' WHERE priority IS NULL");
+  const { data, error } = await supabase
+    .from('workspace_members')
+    .select('workspace_id')
+    .eq('workspace_id', requestedWorkspaceId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.workspace_id ?? null;
+}
 
-  const dateColumns: [string, string][] = [
-    ['started_at', 'TEXT'],
-    ['due_date', 'TEXT'],
-    ['expected_finish_at', 'TEXT'],
-  ];
+async function getWorkspaceRole(
+  req: express.Request,
+  workspaceId: string
+): Promise<'owner' | 'admin' | 'member' | null> {
+  const { user, supabase } = getAuth(req);
+  const { data, error } = await supabase
+    .from('workspace_members')
+    .select('role')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.role ?? null;
+}
 
-  for (const [column, definition] of dateColumns) {
-    if (!(await columnExists('tasks', column))) {
-      await db.exec(`ALTER TABLE tasks ADD COLUMN ${column} ${definition}`);
+function getServiceClient() {
+  const url = process.env.SUPABASE_URL;
+  const serviceRoleKey =
+    process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey)
+    throw new Error('Supabase service role is not configured');
+  return createClient(url, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+const uuid = z.string().uuid();
+function workspaceParam(req: express.Request): string {
+  return uuid.parse(req.params.workspaceId);
+}
+function fail(res: express.Response, error: unknown): void {
+  const code = (error as { code?: string })?.code;
+  const status =
+    error instanceof z.ZodError ||
+    code === '22023' ||
+    code === '22P02' ||
+    code === '22007' ||
+    code === '22008'
+      ? 400
+      : code === '42501'
+        ? 403
+        : code === 'P0002'
+          ? 404
+          : code === '23505'
+            ? 409
+            : 500;
+  const message =
+    status === 500
+      ? 'Unable to complete request'
+      : error instanceof Error
+        ? error.message
+        : ((error as { message?: string })?.message ?? 'Request rejected');
+  res.status(status).json({ message });
+}
+
+app.post('/api/workspaces', requireAuth, async (req, res) => {
+  try {
+    const { name } = z
+      .object({ name: z.string().trim().min(1).max(100) })
+      .strict()
+      .parse(req.body);
+    const { data, error } = await getAuth(req)
+      .supabase.rpc('create_team', {
+        team_name: name,
+      })
+      .single();
+    if (error) throw error;
+    res.status(201).json(data);
+  } catch (error) {
+    fail(res, error);
+  }
+});
+
+app.get(
+  '/api/workspaces/:workspaceId/members',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const w = workspaceParam(req);
+      if (!(await getWorkspaceRole(req, w)))
+        return res.status(403).json({ message: 'Workspace access denied' });
+      const { data, error } = await getAuth(req)
+        .supabase.from('workspace_members')
+        .select(
+          'user_id, role, created_at, profiles!workspace_member_profile(display_name)'
+        )
+        .eq('workspace_id', w)
+        .order('created_at');
+      if (error) throw error;
+      res.json(data);
+    } catch (error) {
+      fail(res, error);
     }
   }
+);
 
-  // Migrate: remove status CHECK constraint from existing databases so custom columns work.
-  const tableInfo = await db.get<{ sql: string }>(`SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'`);
-  if (tableInfo?.sql && tableInfo.sql.includes("CHECK(status IN")) {
-    console.log('Migrating tasks table to remove status CHECK constraint...');
-    await db.exec(`
-      BEGIN TRANSACTION;
-      CREATE TABLE tasks_new (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        description TEXT,
-        status TEXT DEFAULT 'todo',
-        priority TEXT CHECK(priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
-        started_at TEXT,
-        due_date TEXT,
-        expected_finish_at TEXT
-      );
-      INSERT INTO tasks_new SELECT id, title, description, status, priority, started_at, due_date, expected_finish_at FROM tasks;
-      DROP TABLE tasks;
-      ALTER TABLE tasks_new RENAME TO tasks;
-      COMMIT;
-    `);
-    console.log('Migration complete.');
+app.patch(
+  '/api/workspaces/:workspaceId/members/:userId',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { role } = z
+        .object({ role: z.enum(['admin', 'member']) })
+        .strict()
+        .parse(req.body);
+      const { error } = await getAuth(req).supabase.rpc('manage_member', {
+        w: workspaceParam(req),
+        target: uuid.parse(req.params.userId),
+        new_role: role,
+      });
+      if (error) throw error;
+      res.status(204).send();
+    } catch (error) {
+      fail(res, error);
+    }
+  }
+);
+app.delete(
+  '/api/workspaces/:workspaceId/members/:userId',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { error } = await getAuth(req).supabase.rpc('manage_member', {
+        w: workspaceParam(req),
+        target: uuid.parse(req.params.userId),
+      });
+      if (error) throw error;
+      res.status(204).send();
+    } catch (error) {
+      fail(res, error);
+    }
+  }
+);
+
+app.post(
+  '/api/workspaces/:workspaceId/invitations',
+  requireAuth,
+  async (req, res) => {
+    let send: ReturnType<typeof invitationMailer>;
+    let service: ReturnType<typeof getServiceClient>;
+    try {
+      send = invitationMailer();
+      service = getServiceClient();
+    } catch {
+      return res
+        .status(503)
+        .json({ message: 'Invitation email is not configured' });
+    }
+    try {
+      const body = invitationSchema.strict().parse(req.body);
+      const w = workspaceParam(req);
+      const { data, error } = await getAuth(req)
+        .supabase.rpc('prepare_invitation', {
+          w,
+          invite_email: normalizeEmail(body.email),
+          invite_role: body.role,
+        })
+        .single<{ id: string; email: string; role: string; expires_at: string }>();
+      if (error) throw error;
+      try {
+        await send(data.email, w);
+      } catch {
+        // Revoke after a failed/uncertain SMTP delivery, allowing a safe retry.
+        const { error: revokeError } = await service
+          .from('workspace_invitations')
+          .update({ revoked_at: new Date().toISOString() })
+          .eq('id', data.id)
+          .is('accepted_at', null);
+        return res.status(503).json({
+          message: revokeError
+            ? 'Email delivery failed; invitation cleanup requires administrator attention'
+            : 'Email delivery failed. Please retry the invitation.',
+        });
+      }
+      res.status(201).json({
+        id: data.id,
+        email: data.email,
+        role: data.role,
+        expires_at: data.expires_at,
+        delivery: 'accepted_by_mail_server',
+      });
+    } catch (error) {
+      fail(res, error);
+    }
+  }
+);
+
+app.post(
+  '/api/workspaces/:workspaceId/invitations/accept',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { data, error } = await getAuth(req)
+        .supabase.rpc('accept_invitation', { w: workspaceParam(req) })
+        .single<{ workspace_id: string; role: string }>();
+      if (error) throw error;
+      res.json({ workspaceId: data.workspace_id, role: data.role });
+    } catch (error) {
+      fail(res, error);
+    }
+  }
+);
+
+app.get(
+  '/api/workspaces/:workspaceId/activity',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const w = workspaceParam(req);
+      const role = await getWorkspaceRole(req, w);
+      if (role !== 'owner' && role !== 'admin')
+        return res.status(403).json({ message: 'Manager access required' });
+      const before = z.coerce
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .parse(req.query.before);
+      let query = getAuth(req)
+        .supabase.from('task_activity')
+        .select('*')
+        .eq('workspace_id', w)
+        .order('id', { ascending: false })
+        .limit(100);
+      if (before) query = query.lt('id', before);
+      const { data, error } = await query;
+      if (error) throw error;
+      res.json({
+        events: data,
+        nextBefore: data?.length === 100 ? data[99].id : null,
+      });
+    } catch (error) {
+      fail(res, error);
+    }
+  }
+);
+
+app.get('/api/me', requireAuth, async (req, res) => {
+  const { user, supabase } = getAuth(req);
+  const { data: memberships, error } = await supabase
+    .from('workspace_members')
+    .select('workspace_id, role')
+    .eq('user_id', user.id);
+
+  if (error) {
+    res.status(500).json({ message: 'Unable to load workspaces' });
+    return;
   }
 
-  console.log('Database connected and table ready.');
-  app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`Server is running on port ${PORT}`);
+  const workspaces = await Promise.all(
+    (memberships ?? []).map(async (membership) => {
+      const result = await supabase
+        .from('workspaces')
+        .select('id, name, owner_id, kind')
+        .eq('id', membership.workspace_id)
+        .single();
+      if (result.error) throw result.error;
+      return { ...result.data, role: membership.role };
+    })
+  );
+
+  res.json({
+    user: { id: user.id, email: user.email },
+    workspaces: workspaces.filter(Boolean),
   });
-}
+});
 
-// API Routes
+app.get('/api/tasks', requireAuth, async (req, res) => {
+  try {
+    const { supabase } = getAuth(req);
+    const workspaceId = await getWorkspaceId(req);
+    if (!workspaceId)
+      return res
+        .status(403)
+        .json({ message: 'You are not a member of this workspace' });
 
-// Generates a suggested description without persisting task changes.
-app.post('/api/ai/rewrite-task', async (req, res) => {
-  const parsedBody = rewriteTaskSchema.safeParse(req.body);
-
-  if (!parsedBody.success) {
-    return res.status(400).json({ message: parsedBody.error.issues[0]?.message ?? 'Invalid request body' });
+    const archived =
+      z.enum(['true', 'false']).default('false').parse(req.query.archived) ===
+      'true';
+    if (archived) {
+      const role = await getWorkspaceRole(req, workspaceId);
+      if (role !== 'owner' && role !== 'admin')
+        return res.status(403).json({ message: 'Manager access required' });
+    }
+    let query = supabase
+      .from('tasks')
+      .select('*')
+      .eq('workspace_id', workspaceId);
+    query = archived
+      ? query.not('archived_at', 'is', null)
+      : query.is('archived_at', null);
+    const { data, error } = await query.order('created_at', {
+      ascending: true,
+    });
+    if (error) throw error;
+    res.json((data as TaskRow[]).map(mapTask));
+  } catch (error) {
+    fail(res, error);
   }
+});
 
-  const retryAfterSeconds = getAiRateLimit(req.ip ?? 'unknown');
+app.post('/api/tasks', requireAuth, async (req, res) => {
+  const parsed = taskSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res
+      .status(400)
+      .json({ message: parsed.error.issues[0]?.message ?? 'Invalid task' });
+
+  try {
+    const { user, supabase } = getAuth(req);
+    const workspaceId = await getWorkspaceId(req);
+    if (!workspaceId)
+      return res
+        .status(403)
+        .json({ message: 'You are not a member of this workspace' });
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert({
+        workspace_id: workspaceId,
+        created_by: user.id,
+        title: parsed.data.title,
+        description: parsed.data.description,
+        status: parsed.data.status,
+        priority: parsed.data.priority,
+        started_at: parsed.data.startedAt ?? null,
+        due_date: parsed.data.dueDate ?? null,
+        expected_finish_at: parsed.data.expectedFinishAt ?? null,
+        comment: parsed.data.comment ?? null,
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+    res.status(201).json(mapTask(data as TaskRow));
+  } catch (error) {
+    fail(res, error);
+  }
+});
+
+app.put('/api/tasks/:id', requireAuth, async (req, res) => {
+  const parsed = updateTaskSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({
+      message: parsed.error.issues[0]?.message ?? 'Invalid task update',
+    });
+
+  try {
+    const { supabase } = getAuth(req);
+    const workspaceId = await getWorkspaceId(req);
+    if (!workspaceId)
+      return res
+        .status(403)
+        .json({ message: 'You are not a member of this workspace' });
+
+    const { data, error } = await supabase
+      .rpc('edit_task', {
+        w: workspaceId,
+        t: uuid.parse(req.params.id),
+        patch: databaseFields(parsed.data),
+      })
+      .single();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ message: 'Task not found' });
+    res.json(mapTask(data as TaskRow));
+  } catch (error) {
+    fail(res, error);
+  }
+});
+
+app.delete('/api/tasks/:id', requireAuth, async (req, res) => {
+  try {
+    const { supabase } = getAuth(req);
+    const workspaceId = await getWorkspaceId(req);
+    if (!workspaceId)
+      return res
+        .status(403)
+        .json({ message: 'You are not a member of this workspace' });
+    const { error } = await supabase.rpc('archive_task', {
+      w: workspaceId,
+      t: uuid.parse(req.params.id),
+    });
+    if (error) throw error;
+    res.status(204).send();
+  } catch (error) {
+    fail(res, error);
+  }
+});
+
+app.delete('/api/tasks', requireAuth, async (req, res) => {
+  try {
+    const { supabase } = getAuth(req);
+    const workspaceId = await getWorkspaceId(req);
+    if (!workspaceId)
+      return res
+        .status(403)
+        .json({ message: 'You are not a member of this workspace' });
+    const { error } = await supabase.rpc('archive_all_tasks', {
+      w: workspaceId,
+    });
+    if (error) throw error;
+    res.status(204).send();
+  } catch (error) {
+    fail(res, error);
+  }
+});
+
+app.post('/api/tasks/:id/restore', requireAuth, async (req, res) => {
+  try {
+    const w = await getWorkspaceId(req);
+    if (!w) return res.status(403).json({ message: 'Workspace access denied' });
+    const { data, error } = await getAuth(req)
+      .supabase.rpc('archive_task', {
+        w,
+        t: uuid.parse(req.params.id),
+        restore: true,
+      })
+      .single();
+    if (error) throw error;
+    res.json(mapTask(data as TaskRow));
+  } catch (error) {
+    fail(res, error);
+  }
+});
+
+app.post('/api/ai/rewrite-task', requireAuth, async (req, res) => {
+  const parsed = rewriteTaskSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ message: 'Task title is required' });
+  const { user } = getAuth(req);
+  const retryAfterSeconds = getAiRateLimit(user.id);
   if (retryAfterSeconds !== null) {
     res.set('Retry-After', String(retryAfterSeconds));
     return res.status(429).json({
       message: `AI rewrite limit reached. Try again in ${retryAfterSeconds} seconds.`,
     });
   }
-
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return res.status(503).json({ message: 'AI rewriting is not configured on this server.' });
-  }
+  if (!apiKey)
+    return res
+      .status(503)
+      .json({ message: 'AI rewriting is not configured on this server.' });
 
   try {
     const client = new GoogleGenAI({ apiKey });
     const response = await client.models.generateContent({
       model: process.env.GEMINI_MODEL ?? 'gemini-3.1-flash-lite',
-      contents: parsedBody.data.title,
+      contents: parsed.data.title,
       config: {
         systemInstruction:
           'Create a concise, clear, professional Kanban task description from the provided task title. State the intended outcome and general next steps, but do not invent names, deadlines, requirements, technical facts, or details not implied by the title. Return plain text only: no title, labels, bullets, quotation marks, or explanation.',
@@ -218,207 +583,31 @@ app.post('/api/ai/rewrite-task', async (req, res) => {
       },
     });
     const suggestedDescription = response.text?.trim() ?? '';
-
-    if (!suggestedDescription) {
-      return res.status(502).json({ message: 'AI did not return a suggestion. Please try again.' });
-    }
-
+    if (!suggestedDescription)
+      return res
+        .status(502)
+        .json({ message: 'AI did not return a suggestion. Please try again.' });
     res.json({ suggestedDescription });
   } catch (error) {
     console.error('AI task rewrite failed:', error);
-    res.status(502).json({ message: 'Unable to rewrite the task right now. Please try again later.' });
-  }
-});
-
-// 1. GET all tasks
-app.get('/api/tasks', async (req, res) => {
-  try {
-    const tasks = await db.all<TaskRow[]>('SELECT * FROM tasks');
-    res.json(tasks.map(mapTask));
-  } catch (err) {
-    res.status(500).json({ message: 'Error fetching tasks' });
-  }
-});
-
-// 2. POST a new task
-app.post('/api/tasks', async (req, res) => {
-  const body = req.body ?? {};
-  const rawBody = body as Record<string, unknown>;
-
-  const title = typeof rawBody.title === 'string' ? rawBody.title.trim() : '';
-  const description = resolveTaskString(rawBody.description);
-  const status = isTaskStatus(rawBody.status) ? rawBody.status : undefined;
-  const priority = isPriority(rawBody.priority) ? rawBody.priority : undefined;
-  const startedAt = resolveTaskOptionalString(rawBody.startedAt);
-  const dueDate = resolveTaskOptionalString(rawBody.dueDate);
-  const expectedFinishAt = resolveTaskOptionalString(rawBody.expectedFinishAt);
-
-  if (!title) {
-    return res.status(400).json({ message: 'Title is required' });
-  }
-
-  if (rawBody.priority !== undefined && priority === undefined) {
-    return res.status(400).json({ message: 'Priority must be low, medium, or high' });
-  }
-
-  if (rawBody.status !== undefined && status === undefined) {
-    return res.status(400).json({ message: 'Status must be todo, in progress, or done' });
-  }
-
-  for (const value of [startedAt, dueDate, expectedFinishAt]) {
-    if (value !== undefined && !isDateValue(value)) {
-      return res.status(400).json({ message: 'Dates must be valid ISO date or datetime strings' });
-    }
-  }
-
-  const newTask: Task = {
-    id: uuidv4(),
-    title,
-    description,
-    status: status ?? 'todo',
-    priority: priority ?? 'medium',
-    startedAt: startedAt ?? null,
-    dueDate: dueDate ?? null,
-    expectedFinishAt: expectedFinishAt ?? null,
-  };
-
-  try {
-    await db.run(
-      `INSERT INTO tasks (
-        id, title, description, status, priority, started_at, due_date, expected_finish_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        newTask.id,
-        newTask.title,
-        newTask.description,
-        newTask.status,
-        newTask.priority,
-        newTask.startedAt,
-        newTask.dueDate,
-        newTask.expectedFinishAt,
-      ]
-    );
-    res.status(201).json(newTask);
-  } catch (err) {
-    res.status(500).json({ message: 'Error creating task' });
-  }
-});
-
-// 3. PUT (Update) an existing task
-app.put('/api/tasks/:id', async (req, res) => {
-  const { id } = req.params;
-  const body = req.body ?? {};
-  const rawBody = body as Record<string, unknown>;
-
-  const title = typeof rawBody.title === 'string' ? rawBody.title : undefined;
-  const description = typeof rawBody.description === 'string' ? rawBody.description : undefined;
-  const status = isTaskStatus(rawBody.status) ? rawBody.status : undefined;
-  const priority = isPriority(rawBody.priority) ? rawBody.priority : undefined;
-  const startedAt = resolveTaskOptionalString(rawBody.startedAt);
-  const dueDate = resolveTaskOptionalString(rawBody.dueDate);
-  const expectedFinishAt = resolveTaskOptionalString(rawBody.expectedFinishAt);
-
-  if (rawBody.priority !== undefined && priority === undefined) {
-    return res.status(400).json({ message: 'Priority must be low, medium, or high' });
-  }
-
-  if (rawBody.status !== undefined && status === undefined) {
-    return res.status(400).json({ message: 'Status must be todo, in progress, or done' });
-  }
-
-  for (const value of [startedAt, dueDate, expectedFinishAt]) {
-    if (value !== undefined && !isDateValue(value)) {
-      return res.status(400).json({ message: 'Dates must be valid ISO date or datetime strings' });
-    }
-  }
-
-  try {
-    const existingRow = await db.get<TaskRow>('SELECT * FROM tasks WHERE id = ?', [id]);
-
-    if (!existingRow) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    const existingTask = mapTask(existingRow);
-
-    const updatedTitle = title !== undefined ? title : existingTask.title;
-    const updatedDesc = description !== undefined ? description : existingTask.description;
-    const updatedStatus = status !== undefined ? status : existingTask.status;
-    const updatedPriority = priority !== undefined ? priority : existingTask.priority;
-    let updatedStartedAt = startedAt !== undefined ? startedAt : existingTask.startedAt;
-    const updatedDueDate = dueDate !== undefined ? dueDate : existingTask.dueDate;
-    const updatedExpectedFinishAt =
-      expectedFinishAt !== undefined ? expectedFinishAt : existingTask.expectedFinishAt;
-
-    if (
-      updatedStatus === 'in progress' &&
-      existingTask.status !== 'in progress' &&
-      !updatedStartedAt
-    ) {
-      updatedStartedAt = new Date().toISOString();
-    }
-
-    await db.run(
-      `UPDATE tasks
-       SET title = ?, description = ?, status = ?, priority = ?, started_at = ?, due_date = ?, expected_finish_at = ?
-       WHERE id = ?`,
-      [
-        updatedTitle,
-        updatedDesc,
-        updatedStatus,
-        updatedPriority,
-        updatedStartedAt,
-        updatedDueDate,
-        updatedExpectedFinishAt,
-        id,
-      ]
-    );
-
-    res.json({
-      id,
-      title: updatedTitle,
-      description: updatedDesc,
-      status: updatedStatus,
-      priority: updatedPriority,
-      startedAt: updatedStartedAt,
-      dueDate: updatedDueDate,
-      expectedFinishAt: updatedExpectedFinishAt,
+    res.status(502).json({
+      message: 'Unable to rewrite the task right now. Please try again later.',
     });
-  } catch (err) {
-    res.status(500).json({ message: 'Error updating task' });
   }
 });
 
-// 4. DELETE a task
-app.delete('/api/tasks/:id', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const result = await db.run('DELETE FROM tasks WHERE id = ?', [id]);
-    
-    if (result.changes === 0) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    res.status(204).send();
-  } catch (err) {
-    res.status(500).json({ message: 'Error deleting task' });
+app.use(
+  (
+    error: unknown,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
+    fail(res, error);
   }
-});
-
-// DELETE ALL TASKS
-app.delete('/api/tasks', async (req, res)=> {
-
-  try{
-    await db.run('DELETE FROM tasks');
-    res.status(204).send(); // 204 means no content
-
-  } catch (err) {
-    res.status(500).json({ message: 'Error deleting all tasks' });
-  }
-})
-
-startServer().catch((err) => {
-  console.error('Unable to start server:', err);
-  process.exit(1);
-});
+);
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, '0.0.0.0', () =>
+    console.log(`Server is running on port ${PORT}`)
+  );
+}

@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import type { Task, Column } from '../types/task.ts';
+import { apiRequest, requestError } from '../lib/api';
 
 interface TaskModalProps {
+  workspaceId: string;
   task: Task;
   columns?: Column[];
   onSave: (
     changes: Pick<
       Task,
-      'title' | 'description' | 'priority' | 'status' | 'startedAt' | 'dueDate' | 'expectedFinishAt'
+      | 'title'
+      | 'description'
+      | 'priority'
+      | 'status'
+      | 'startedAt'
+      | 'dueDate'
+      | 'expectedFinishAt'
     >
   ) => Promise<void>;
   onClose: () => void;
@@ -21,8 +29,6 @@ const btnBase =
 
 const editableFieldClass =
   'w-full cursor-pointer rounded-md border border-transparent px-3.5 py-2.5 text-left transition-colors hover:border-[var(--border)] hover:bg-[var(--surface-raised)] focus-visible:border-[var(--accent)] focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgb(61_90_76/0.15)]';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 function toDateInputString(value: string | null): string {
   if (!value) return '';
@@ -45,14 +51,22 @@ function buildRecommendedDescription(taskTitle: string): string {
   return 'Describe the work required, the important details or steps, and the outcome that will confirm it is complete.';
 }
 
-export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
+export function TaskModal({
+  task,
+  columns,
+  onSave,
+  onClose,
+  workspaceId,
+}: TaskModalProps) {
   const isNewTask = !task.id;
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
   const [suggestedDescription, setSuggestedDescription] = useState(
     buildRecommendedDescription(task.title)
   );
-  const [suggestionSource, setSuggestionSource] = useState<'local' | 'gemini'>('local');
+  const [suggestionSource, setSuggestionSource] = useState<'local' | 'gemini'>(
+    'local'
+  );
   const [status, setStatus] = useState<string>(task.status);
   const [priority, setPriority] = useState<Task['priority']>(task.priority);
   const [startedAt, setStartedAt] = useState(toDateInputString(task.startedAt));
@@ -64,8 +78,12 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
   const [aiError, setAiError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isRewriting, setIsRewriting] = useState(false);
-  const [confirmation, setConfirmation] = useState<'save' | 'discard' | null>(null);
-  const [activeField, setActiveField] = useState<'title' | 'description' | null>(null);
+  const [confirmation, setConfirmation] = useState<'save' | 'discard' | null>(
+    null
+  );
+  const [activeField, setActiveField] = useState<
+    'title' | 'description' | null
+  >(null);
 
   const hasChanges =
     title !== task.title ||
@@ -140,17 +158,11 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
     setIsRewriting(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/ai/rewrite-task`, {
+      const data: unknown = await apiRequest('/api/ai/rewrite-task', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        workspaceId,
         body: JSON.stringify({ title: trimmedTitle }),
       });
-
-      if (!response.ok) {
-        throw new Error('Gemini rewrite request failed');
-      }
-
-      const data: unknown = await response.json();
       const suggestion =
         typeof data === 'object' &&
         data !== null &&
@@ -165,8 +177,8 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
 
       setSuggestedDescription(suggestion);
       setSuggestionSource('gemini');
-    } catch {
-      setAiError('Gemini is unavailable. Please try again later.');
+    } catch (cause) {
+      setAiError(requestError(cause));
     } finally {
       setIsRewriting(false);
     }
@@ -220,7 +232,8 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="presentation"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !confirmation) requestClose();
+        if (event.target === event.currentTarget && !confirmation)
+          requestClose();
       }}
     >
       <form
@@ -232,11 +245,16 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 id="edit-task-title" className="m-0 text-xl font-bold text-[var(--text)]">
+            <h2
+              id="edit-task-title"
+              className="m-0 text-xl font-bold text-[var(--text)]"
+            >
               {isNewTask ? 'New task' : 'Task details'}
             </h2>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              {isNewTask ? 'Add the details for this task.' : 'Click any detail to update it.'}
+              {isNewTask
+                ? 'Add the details for this task.'
+                : 'Click any detail to update it.'}
             </p>
           </div>
           <button
@@ -272,7 +290,9 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
               onClick={() => setActiveField('title')}
               aria-label="Edit title"
             >
-              <span className="block text-sm font-semibold text-[var(--text)]">Title</span>
+              <span className="block text-sm font-semibold text-[var(--text)]">
+                Title
+              </span>
               <span className="mt-1 block break-words text-[0.95rem] font-semibold text-[var(--text)]">
                 {title || 'Untitled task'}
               </span>
@@ -299,10 +319,14 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
               onClick={() => setActiveField('description')}
               aria-label="Edit description"
             >
-              <span className="block text-sm font-semibold text-[var(--text)]">Description</span>
+              <span className="block text-sm font-semibold text-[var(--text)]">
+                Description
+              </span>
               <span
                 className={`mt-1 block whitespace-pre-wrap break-words text-[0.95rem] font-normal leading-relaxed ${
-                  description ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'
+                  description
+                    ? 'text-[var(--text)]'
+                    : 'text-[var(--text-muted)]'
                 }`}
               >
                 {description || 'Add a description'}
@@ -315,7 +339,12 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#8ab4ff_0%,#7c5cff_45%,#48d0b7_100%)] text-[#fff] shadow-[0_8px_20px_rgba(80,104,176,0.18)]">
-                    <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <svg
+                      className="h-4.5 w-4.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden="true"
+                    >
                       <path
                         d="M12 3l1.6 4.8L18.4 9.4l-4.8 1.5L12 15.7l-1.6-4.8L5.6 9.4l4.8-1.6L12 3Z"
                         fill="currentColor"
@@ -323,8 +352,12 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-[var(--text)]">Gemini suggestion</h3>
-                    <p className="text-xs text-[var(--text-muted)]">Create a description from the current title</p>
+                    <h3 className="text-sm font-semibold text-[var(--text)]">
+                      Gemini suggestion
+                    </h3>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      Create a description from the current title
+                    </p>
                   </div>
                 </div>
 
@@ -343,14 +376,19 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
                     className="cursor-pointer rounded-md border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-xs font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={applySuggestedDescription}
-                    disabled={isSaving || isRewriting || !suggestedDescription.trim()}
+                    disabled={
+                      isSaving || isRewriting || !suggestedDescription.trim()
+                    }
                   >
                     Apply
                   </button>
                 </div>
               </div>
               {aiError && (
-                <p className="mt-3 text-xs font-medium text-[var(--danger)]" role="alert">
+                <p
+                  className="mt-3 text-xs font-medium text-[var(--danger)]"
+                  role="alert"
+                >
                   {aiError}
                 </p>
               )}
@@ -380,7 +418,9 @@ export function TaskModal({ task, columns, onSave, onClose }: TaskModalProps) {
               <select
                 className={`${inputClass} mt-1.5`}
                 value={priority}
-                onChange={(event) => setPriority(event.target.value as Task['priority'])}
+                onChange={(event) =>
+                  setPriority(event.target.value as Task['priority'])
+                }
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>

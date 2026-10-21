@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/kanban.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kanban Desk</title>
     <script>
@@ -10,7 +10,8 @@
         var stored = localStorage.getItem('kanban-theme');
         var dark =
           stored === 'dark' ||
-          (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          (stored !== 'light' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
         if (dark) document.documentElement.classList.add('dark');
       })();
     </script>
