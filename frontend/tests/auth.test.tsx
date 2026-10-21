@@ -188,3 +188,20 @@ it('resends confirmation with a cooldown', async () => {
     vi.useRealTimers();
   }
 });
+
+it('keeps password-recovery email and resend mode inside the account modal', async () => {
+  const { AccountModal } = await import('../src/component/AccountModal');
+  mount(<AccountModal {...theme} onClose={vi.fn()} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('link', { name: 'Forgot password?' }));
+  await user.type(screen.getByLabelText('Email'), 'recovery@example.com');
+  await user.click(screen.getByRole('button', { name: 'Send reset link' }));
+  expect(
+    await screen.findByRole('heading', { name: 'Check your email' })
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/you’ll receive a password reset link/)
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText('Email')).toHaveValue('recovery@example.com');
+  expect(screen.getByRole('button', { name: 'Resend in 60s' })).toBeDisabled();
+});

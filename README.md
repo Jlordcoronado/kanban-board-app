@@ -14,9 +14,9 @@ When work is spread across notes, messages, and disconnected lists, it becomes d
 
 ## What users can do
 
-- Create an account, confirm an email address, sign in with email/password or Google, and recover account access.
-- Work on a private personal board selected from the signed-in account.
-- Organise work across up to seven workflow columns during the current board session.
+- Start immediately on a guest board saved in this browser, or create an account, confirm an email address, sign in with email/password or Google, and recover account access.
+- Work on a private cloud board when signed in; copy device work with a preview and keep the original guest board.
+- Organise work across up to seven persistent workflow columns.
 - Create, edit, move, and archive tasks without leaving the board.
 - Track priority, start date, due date, and expected finish date.
 - Identify overdue work at a glance.
@@ -26,10 +26,12 @@ When work is spread across notes, messages, and disconnected lists, it becomes d
 - Switch between light and dark themes.
 - Request an optional AI-generated description suggestion and decide whether to use it.
 
+Guest work stays separate from cloud work. Signing out restores the browser board; imports never overwrite cloud tasks and later guest edits do not silently update prior copies. Gemini requires sign-in and an explicit rewrite request. Cloud changes from other devices load when the app opens or refreshes; live updates and offline synchronization are outside this version.
+
 ## Product decisions
 
 - **Clarity over clutter:** the board keeps the most important information visible while details remain available when needed.
-- **Flexible workflows:** users can create and rename columns instead of being forced into a fixed process; custom column definitions are currently held in the browser session.
+- **Flexible workflows:** users can create and rename columns instead of being forced into a fixed process; tasks and columns save locally for guests and to Supabase for accounts.
 - **Account separation:** authenticated API requests use the user's identity, with workspace access enforced in PostgreSQL.
 - **Recoverable removal:** archive actions retain task records; restore is currently available through the backend API.
 - **Safe editing:** unsaved changes are protected by clear confirmation flows.
@@ -74,15 +76,15 @@ The repository includes separate setup documentation for developers who want to 
 
 ## Current status
 
-The source includes authenticated personal boards, task archiving, account recovery, and automated tests. The backend also implements team workspaces, role management, email invitations, archive restoration, and activity history. Frontend screens for those team and administrative features are still planned; emailed invitation links require a future acceptance screen.
+The source includes guest boards, optional cloud accounts, revision conflict review, task archiving, account recovery, and automated tests. The backend also implements team workspaces, role management, email invitations, archive restoration, and activity history. Frontend screens for those team and administrative features are still planned; emailed invitation links require a future acceptance screen.
 
-Custom column definitions reset on refresh; tasks persist independently, so tasks assigned to custom stages can lose their visible column until persistence is implemented. The old SQLite database is not copied into Supabase automatically.
+Tasks, columns, renames, and archive actions persist across refreshes. Cloud writes use server-checked revisions and transactional task/column updates; outdated changes require review before applying. Failed saves retain work with an explicit retry. Clearing browser data removes guest work. The old SQLite database is not copied into Supabase automatically.
 
-The Render link above points to the existing demo. Deployment of the latest account and database changes has not been verified. The checked-in Render configuration needs additional Supabase and origin settings before it can run this version. Remaining delivery work includes live authentication/email smoke tests, dependency review, persistent columns, and refreshed screenshots. The screenshot above illustrates the board and does not show the new account flows.
+The Render link above points to the existing demo. Deployment of the latest account and database changes has not been verified. The checked-in Render configuration needs additional Supabase and origin settings before it can run this version. Remaining delivery work includes live authentication/email smoke tests, dependency review and refreshed screenshots. The screenshot above illustrates the board and does not show the new account flows.
 
 ## Verification
 
-Frontend tests cover account forms, session transitions, API failures, recovery, and stale responses after account changes. Backend tests cover request validation, invitation mail, workspace permissions, archiving, and activity transactions. Database tests run against an isolated PostgreSQL engine; live Supabase, Google, SMTP, and browser behavior require separate checks. See the component READMEs for commands and limitations.
+Frontend tests cover guest persistence, local storage failure, cloud save retry and conflicts, editor draft recovery, account forms, session transitions, API failures, recovery, and stale responses after account changes. Backend tests cover request validation, invitation mail, workspace permissions, archiving, activity transactions, board migrations, revisions, and duplicate-free guest imports. Database tests run against an isolated PostgreSQL engine; live Supabase, Google, SMTP, and browser behavior require separate checks. See the component READMEs for commands and limitations.
 
 ## Why this matters to clients and teams
 

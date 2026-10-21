@@ -10,6 +10,7 @@ import {
 } from './taskValidation.js';
 import { invitationMailer } from './mail.js';
 import { z } from 'zod';
+import { boardSchema, importSchema } from './board.js';
 import { getAuth, requireAuth } from './middleware.js';
 
 export const app = express();
@@ -24,7 +25,7 @@ const invitationSchema = z.object({
 
 app.set('trust proxy', 1);
 app.use(cors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' }));
-app.use(express.json());
+app.use(express.json({ limit: '8mb' }));
 
 app.use(
   (
@@ -286,7 +287,12 @@ app.post(
           invite_email: normalizeEmail(body.email),
           invite_role: body.role,
         })
-        .single<{ id: string; email: string; role: string; expires_at: string }>();
+        .single<{
+          id: string;
+          email: string;
+          role: string;
+          expires_at: string;
+        }>();
       if (error) throw error;
       try {
         await send(data.email, w);
@@ -395,6 +401,46 @@ app.get('/api/me', requireAuth, async (req, res) => {
     workspaces: workspaces.filter(Boolean),
   });
 });
+
+// Board RPCs return one consistent snapshot and serialize writes in PostgreSQL.
+for (const method of ['get', 'put', 'post'] as const) {
+  app[method](
+    method === 'post' ? '/api/board/import' : '/api/board',
+    requireAuth,
+    async (req, res) => {
+      try {
+        const w = await getWorkspaceId(req);
+        if (!w)
+          return res.status(403).json({ message: 'Workspace access denied' });
+        const body =
+          method === 'put'
+            ? boardSchema.parse(req.body)
+            : method === 'post'
+              ? importSchema.parse(req.body)
+              : null;
+        const { data, error } = await getAuth(req).supabase.rpc(
+          method === 'get'
+            ? 'load_board'
+            : method === 'put'
+              ? 'save_board'
+              : 'import_board',
+          body ? { w, payload: body } : { w }
+        );
+        if (error?.code === '40001')
+          return res
+            .status(409)
+            .json({
+              message:
+                'Your cloud board changed. Review the latest board before applying your draft.',
+            });
+        if (error) throw error;
+        res.json(data);
+      } catch (error) {
+        fail(res, error);
+      }
+    }
+  );
+}
 
 app.get('/api/tasks', requireAuth, async (req, res) => {
   try {

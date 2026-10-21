@@ -1,5 +1,11 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  type NavigateOptions,
+} from 'react-router-dom';
 import { AuthLayout, type ThemeProps } from '../component/AuthLayout';
 import { authRedirect, recoveryRedirect, supabase } from '../auth/client';
 import { useAuth } from '../auth/context';
@@ -42,13 +48,22 @@ export function PasswordField({
 }
 export function AuthForm({
   mode,
+  onNavigate,
   ...theme
-}: ThemeProps & { mode: 'signin' | 'signup' }) {
+}: ThemeProps & {
+  mode: 'signin' | 'signup';
+  onNavigate?: (path: string, options?: NavigateOptions) => void;
+}) {
   const signup = mode === 'signup';
   const { session, loading, recovery, error: sessionError } = useAuth();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const navigate = useNavigate();
+  const routeNavigate = useNavigate();
+  const navigate = (to: string, options?: NavigateOptions) => {
+    if (onNavigate && typeof to === 'string' && to !== '/')
+      onNavigate(to, options);
+    else routeNavigate(to as string, options);
+  };
   if (!loading && session)
     return <Navigate to={recovery ? '/reset-password' : '/'} replace />;
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -129,7 +144,8 @@ export function AuthForm({
     >
       {!supabase && (
         <p role="alert" className="auth-error">
-          Sign-in is temporarily unavailable.
+          Cloud access is unavailable. You can keep using your board on this
+          device.
         </p>
       )}
       {(error || sessionError) && (
@@ -216,10 +232,20 @@ export function AuthForm({
   );
 }
 
-export function ForgotPassword(theme: ThemeProps) {
+export function ForgotPassword({
+  onNavigate,
+  ...theme
+}: ThemeProps & {
+  onNavigate?: (path: string, options?: NavigateOptions) => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const navigate = useNavigate();
+  const routeNavigate = useNavigate();
+  const navigate = (to: string, options?: NavigateOptions) => {
+    if (onNavigate && typeof to === 'string' && to !== '/')
+      onNavigate(to, options);
+    else routeNavigate(to as string, options);
+  };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const email = String(new FormData(event.currentTarget).get('email')).trim();
@@ -279,11 +305,15 @@ export function ForgotPassword(theme: ThemeProps) {
   );
 }
 
-export function CheckEmail(theme: ThemeProps) {
+export function CheckEmail({
+  details,
+  ...theme
+}: ThemeProps & { details?: { email?: string; kind?: string } }) {
   const location = useLocation();
-  const [email, setEmail] = useState<string>(location.state?.email ?? '');
-  const kind = location.state?.kind === 'recovery' ? 'recovery' : 'signup';
-  const [cooldown, setCooldown] = useState(location.state?.email ? 60 : 0);
+  const emailState = details ?? location.state;
+  const [email, setEmail] = useState<string>(emailState?.email ?? '');
+  const kind = emailState?.kind === 'recovery' ? 'recovery' : 'signup';
+  const [cooldown, setCooldown] = useState(emailState?.email ? 60 : 0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');

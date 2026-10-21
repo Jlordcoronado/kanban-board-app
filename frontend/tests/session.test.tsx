@@ -17,6 +17,12 @@ vi.mock('../src/auth/client', () => ({
   recoveryRedirect: () => '/reset-password',
 }));
 import App from '../src/App';
+import {
+  defaultColumns,
+  GUEST_KEY,
+  guestFingerprint,
+  type GuestBoard,
+} from '../src/lib/board';
 function session(id: string): Session {
   return {
     access_token: `token-${id}`,
@@ -43,7 +49,7 @@ beforeEach(() => {
   });
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
 });
-it('shows session loading, then sign-in, without flashing board content', async () => {
+it('shows session loading, then an immediately usable guest board', async () => {
   let finish!: (value: { data: { session: null }; error: null }) => void;
   fixture.auth.getSession.mockImplementationOnce(
     () =>
@@ -58,10 +64,37 @@ it('shows session loading, then sign-in, without flashing board content', async 
   ).not.toBeInTheDocument();
   await act(async () => finish({ data: { session: null }, error: null }));
   expect(
-    await screen.findByRole('heading', { name: 'Sign in' })
+    await screen.findByRole('button', { name: 'Save to cloud' })
   ).toBeInTheDocument();
 });
 it('selects the personal workspace, ignores old-account responses, and clears the board on sign-out', async () => {
+  const guest: GuestBoard = {
+    version: 1,
+    deviceId: crypto.randomUUID(),
+    revision: 0,
+    columns: defaultColumns(),
+    tasks: [
+      {
+        id: 'local-task',
+        title: 'Original guest work',
+        description: '',
+        status: 'todo',
+        priority: 'medium',
+        startedAt: null,
+        dueDate: null,
+        expectedFinishAt: null,
+      },
+    ],
+  };
+  localStorage.setItem(GUEST_KEY, JSON.stringify(guest));
+  localStorage.setItem(
+    'kanban-copy-dismissed-personal-a',
+    guestFingerprint(guest)
+  );
+  localStorage.setItem(
+    'kanban-copy-dismissed-personal-b',
+    guestFingerprint(guest)
+  );
   fixture.session = session('a');
   let finishOld!: (response: Response) => void;
   const requests: { path: string; workspace: string | null }[] = [];
@@ -85,18 +118,22 @@ it('selects the personal workspace, ignores old-account responses, and clears th
         return new Promise<Response>((resolve) => {
           finishOld = resolve;
         });
-      return Response.json([
-        {
-          id: 'task-b',
-          title: 'B private task',
-          description: '',
-          status: 'todo',
-          priority: 'medium',
-          startedAt: null,
-          dueDate: null,
-          expectedFinishAt: null,
-        },
-      ]);
+      return Response.json({
+        revision: 0,
+        columns: defaultColumns(),
+        tasks: [
+          {
+            id: 'task-b',
+            title: 'B private task',
+            description: '',
+            status: 'todo',
+            priority: 'medium',
+            startedAt: null,
+            dueDate: null,
+            expectedFinishAt: null,
+          },
+        ],
+      });
     })
   );
   render(<App />);
@@ -122,9 +159,10 @@ it('selects the personal workspace, ignores old-account responses, and clears th
     .setup()
     .click(screen.getByRole('button', { name: 'Sign out' }));
   expect(
-    await screen.findByRole('heading', { name: 'Sign in' })
+    await screen.findByRole('button', { name: 'Save to cloud' })
   ).toBeInTheDocument();
   expect(screen.queryByText('B private task')).not.toBeInTheDocument();
+  expect(screen.getByText('Original guest work')).toBeInTheDocument();
 });
 it('offers retry when the authenticated backend is unavailable', async () => {
   fixture.session = session('a');
@@ -156,23 +194,27 @@ it('keeps a task visible when archiving fails', async () => {
           user: { id: 'b' },
           workspaces: [{ id: 'personal-b', kind: 'personal', role: 'owner' }],
         });
-      if (init?.method === 'DELETE')
+      if (init?.method === 'PUT')
         return Response.json(
           { message: 'Archive unavailable' },
           { status: 503 }
         );
-      return Response.json([
-        {
-          id: 'task-b',
-          title: 'Keep this task',
-          description: '',
-          status: 'todo',
-          priority: 'medium',
-          startedAt: null,
-          dueDate: null,
-          expectedFinishAt: null,
-        },
-      ]);
+      return Response.json({
+        revision: 0,
+        columns: defaultColumns(),
+        tasks: [
+          {
+            id: 'task-b',
+            title: 'Keep this task',
+            description: '',
+            status: 'todo',
+            priority: 'medium',
+            startedAt: null,
+            dueDate: null,
+            expectedFinishAt: null,
+          },
+        ],
+      });
     })
   );
   render(<App />);
@@ -188,7 +230,7 @@ it('keeps a task visible when archiving fails', async () => {
   expect(screen.getByText('Keep this task')).toBeInTheDocument();
 });
 
-it('returns to sign-in when the backend rejects an expired token', async () => {
+it('returns to the guest board when the backend rejects an expired token', async () => {
   fixture.session = session('a');
   vi.stubGlobal(
     'fetch',
@@ -196,12 +238,12 @@ it('returns to sign-in when the backend rejects an expired token', async () => {
   );
   render(<App />);
   expect(
-    await screen.findByRole('heading', { name: 'Sign in' })
+    await screen.findByRole('button', { name: 'Save to cloud' })
   ).toBeInTheDocument();
   expect(screen.getByRole('alert')).toHaveTextContent('session expired');
   expect(
-    screen.queryByRole('button', { name: 'Add Task' })
-  ).not.toBeInTheDocument();
+    screen.getAllByRole('button', { name: 'Add Task' })[0]
+  ).toBeInTheDocument();
 });
 
 it('preserves a valid recovery flow across a refresh in the same tab', async () => {

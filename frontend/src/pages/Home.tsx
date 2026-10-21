@@ -1,13 +1,27 @@
-import { useState, useEffect } from 'react';
-import { apiRequest, requestError } from '../lib/api';
-import type { Task, Column } from '../types/task.ts';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { requestError } from '../lib/api';
+import { useBoard } from '../board/useBoard';
+import {
+  type Board,
+  activeTasks,
+  guestFingerprint,
+  readGuest,
+  readGuestDraft,
+  rememberGuestDraft,
+  forgetGuestDraft,
+  hasGuestWork,
+} from '../lib/board';
+import { GuestImport } from '../component/GuestImport';
+import { Dialog } from '../component/Dialog';
+import type { Task } from '../types/task.ts';
 import { KanbanColumn } from '../component/KanbanColumn.tsx';
 import { TaskModal } from '../component/TaskModal.tsx';
 import { AddColumnModal } from '../component/AddColumnModal.tsx';
 import { ConfirmDeleteModal } from '../component/ConfirmDeleteModal.tsx';
 
 interface HomeProps {
-  workspaceId: string;
+  workspaceId?: string;
+  onSignIn?: () => void;
   accountEmail: string;
   onSignOut: () => Promise<void>;
   theme: 'light' | 'dark';
@@ -20,17 +34,58 @@ function Home({
   workspaceId,
   accountEmail,
   onSignOut,
+  onSignIn,
 }: HomeProps) {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [columns, setColumns] = useState<Column[]>([
-    { id: 'todo', title: 'To Do' },
-    { id: 'in progress', title: 'In Progress' },
-    { id: 'done', title: 'Done' },
-  ]);
+  const storage = useBoard(workspaceId);
+  const newTaskIdentity = useRef(crypto.randomUUID());
+  const { board, loading: loadingTasks } = storage;
+  const tasks = activeTasks(board);
+  const columns = board.columns;
+  const [showImport, setShowImport] = useState(false);
+  const [conflictHidden, setConflictHidden] = useState(false);
+  useEffect(() => {
+    setConflictHidden(false);
+  }, [storage.latest]);
+  const [importChecked, setImportChecked] = useState(false);
+  const [draftError, setDraftError] = useState('');
+  const [deviceDraft] = useState(readGuestDraft);
+  const clearDraft = () => {
+    if (!workspaceId) forgetGuestDraft();
+  };
+  const rememberDraft = useCallback(
+    (draft: Task) => {
+      if (workspaceId) return;
+      try {
+        rememberGuestDraft(draft);
+      } catch {
+        setDraftError(
+          'Unable to preserve this draft through a redirect. Keep this page open until it is saved.'
+        );
+      }
+    },
+    [workspaceId]
+  );
+  useEffect(() => {
+    if (!workspaceId || loadingTasks || importChecked || !columns.length)
+      return;
+    const guest = readGuest().board;
+    let dismissed = false;
+    try {
+      dismissed =
+        localStorage.getItem(`kanban-copy-dismissed-${workspaceId}`) ===
+        guestFingerprint(guest);
+    } catch {
+      /* offer explicit choice */
+    }
+    if (hasGuestWork(guest) && !dismissed) setShowImport(true);
+    setImportChecked(true);
+  }, [workspaceId, loadingTasks, importChecked, columns.length]);
   const [dragOverColumn, setDragOverColumn] = useState<Task['status'] | null>(
     null
   );
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(() =>
+    !workspaceId ? deviceDraft : null
+  );
   const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null);
 
   const [isAddColumnOpen, setIsAddColumnOpen] = useState(false);
@@ -38,142 +93,121 @@ function Home({
   const [isConfirmDeleteAllOpen, setIsConfirmDeleteAllOpen] = useState(false);
 
   const [error, setError] = useState('');
-  const [loadingTasks, setLoadingTasks] = useState(true);
-  const [loadAttempt, setLoadAttempt] = useState(0);
   const [archivingAll, setArchivingAll] = useState(false);
-  useEffect(() => {
-    const controller = new AbortController();
-    void apiRequest<Task[]>('/api/tasks', {
-      workspaceId,
-      signal: controller.signal,
-    })
-      .then((data) => {
-        if (!Array.isArray(data))
-          throw new Error('The server returned an invalid task list.');
-        setTasks(data);
-      })
-      .catch((cause) => {
-        if (!controller.signal.aborted && cause?.name !== 'AbortError')
-          setError(requestError(cause));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoadingTasks(false);
-      });
-    return () => controller.abort();
-  }, [workspaceId, loadAttempt]);
-
   const MAX_COLUMNS = 7;
   const isMaxColumnsReached = columns.length >= MAX_COLUMNS;
-
-  const handleRenameColumn = (id: string, newTitle: string) => {
-    const sanitized = newTitle.trim();
-    if (!sanitized) return;
-
-    setColumns((prev) =>
-      prev.map((col) => (col.id === id ? { ...col, title: sanitized } : col))
+  const attempt = (action: Promise<unknown>) => {
+    void action.catch((cause) => setError(requestError(cause)));
+  };
+  const handleRenameColumn = (id: string, title: string) => {
+    if (!title.trim()) return;
+    attempt(
+      storage.change((b) => ({
+        ...b,
+        columns: b.columns.map((c) =>
+          c.id === id ? { ...c, title: title.trim() } : c
+        ),
+      }))
     );
   };
-
   const handleAddColumn = (title: string) => {
-    const sanitized = title.trim();
-    if (!sanitized || columns.length >= MAX_COLUMNS) return;
-
-    const newId = `col-${Date.now()}`;
-    setColumns((prev) => [...prev, { id: newId, title: sanitized }]);
+    if (!title.trim() || columns.length >= MAX_COLUMNS) return;
+    attempt(
+      storage.change((b) => ({
+        ...b,
+        columns: [
+          ...b.columns,
+          { id: `col-${crypto.randomUUID()}`, title: title.trim() },
+        ],
+      }))
+    );
   };
-
   const confirmDeleteColumn = (id: string) => {
     if (columns.length <= 1) return;
-    const fallbackId = columns.find((c) => c.id !== id)?.id || 'todo';
-    setTasks((prev) =>
-      prev.map((t) => (t.status === id ? { ...t, status: fallbackId } : t))
+    const fallback = columns.find((c) => c.id !== id)!.id;
+    attempt(
+      storage.change((b) => ({
+        ...b,
+        columns: b.columns.filter((c) => c.id !== id),
+        tasks: b.tasks.map((t) =>
+          t.status === id ? { ...t, status: fallback } : t
+        ),
+      }))
     );
-    setColumns((prev) => prev.filter((col) => col.id !== id));
     setDeletingColumnId(null);
   };
-
-  const createTask = async (
-    taskData: Pick<
-      Task,
-      | 'title'
-      | 'description'
-      | 'priority'
-      | 'status'
-      | 'startedAt'
-      | 'dueDate'
-      | 'expectedFinishAt'
-    >
-  ) => {
-    const newTask = await apiRequest<Task>('/api/tasks', {
-      method: 'POST',
-      workspaceId,
-      body: JSON.stringify(taskData),
-    });
-    setTasks((prev) => [...prev, newTask]);
+  type Changes = Pick<
+    Task,
+    | 'title'
+    | 'description'
+    | 'priority'
+    | 'status'
+    | 'startedAt'
+    | 'dueDate'
+    | 'expectedFinishAt'
+  >;
+  const createTask = async (data: Changes) => {
+    await storage.change((b) => ({
+      ...b,
+      tasks: [
+        ...b.tasks.filter((t) => t.id !== newTaskIdentity.current),
+        { ...data, id: newTaskIdentity.current },
+      ],
+    }));
+    clearDraft();
     setNewTaskStatus(null);
+    setEditingTask(null);
+    newTaskIdentity.current = crypto.randomUUID();
   };
-
-  const moveTask = async (id: string, newStatus: Task['status']) => {
-    try {
-      const updatedTask = await apiRequest<Task>(`/api/tasks/${id}`, {
-        method: 'PUT',
-        workspaceId,
-        body: JSON.stringify({ status: newStatus }),
-      });
-      setTasks((prev) => prev.map((t) => (t.id === id ? updatedTask : t)));
-    } catch (err) {
-      setError(requestError(err));
-    }
-  };
-
-  const updateTask = async (
-    id: string,
-    changes: Pick<
-      Task,
-      | 'title'
-      | 'description'
-      | 'priority'
-      | 'status'
-      | 'startedAt'
-      | 'dueDate'
-      | 'expectedFinishAt'
-    >
-  ) => {
-    const updatedTask = await apiRequest<Task>(`/api/tasks/${id}`, {
-      method: 'PUT',
-      workspaceId,
-      body: JSON.stringify(changes),
-    });
-    setTasks((prev) =>
-      prev.map((task) => (task.id === id ? updatedTask : task))
-    );
+  const updateTask = async (id: string, changes: Changes) => {
+    await storage.change((b) => ({
+      ...b,
+      tasks: b.tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)),
+    }));
+    clearDraft();
     setEditingTask(null);
   };
-
-  const deleteTask = async (id: string) => {
+  const moveTask = async (id: string, status: string) => {
     try {
-      await apiRequest<void>(`/api/tasks/${id}`, {
-        method: 'DELETE',
-        workspaceId,
-      });
-      setTasks((previous) => previous.filter((t) => t.id !== id));
-    } catch (err) {
-      setError(requestError(err));
+      await storage.change((b) => ({
+        ...b,
+        tasks: b.tasks.map((t) => (t.id === id ? { ...t, status } : t)),
+      }));
+    } catch (e) {
+      setError(requestError(e));
     }
   };
-
+  const deleteTask = async (id: string) => {
+    try {
+      await storage.change((b) => ({
+        ...b,
+        tasks: workspaceId
+          ? b.tasks.filter((t) => t.id !== id)
+          : b.tasks.map((t) =>
+              t.id === id ? { ...t, archivedAt: new Date().toISOString() } : t
+            ),
+      }));
+    } catch (e) {
+      setError(requestError(e));
+    }
+  };
   const confirmDeleteAllTasks = async () => {
-    if (archivingAll) return;
     setArchivingAll(true);
     try {
-      await apiRequest<void>('/api/tasks', { method: 'DELETE', workspaceId });
-      setTasks([]);
-      setIsConfirmDeleteAllOpen(false);
-    } catch (cause) {
-      setError(requestError(cause));
-      setIsConfirmDeleteAllOpen(false);
+      await storage.change((b) => ({
+        ...b,
+        tasks: workspaceId
+          ? []
+          : b.tasks.map((t) => ({
+              ...t,
+              archivedAt: t.archivedAt || new Date().toISOString(),
+            })),
+      }));
+    } catch (e) {
+      setError(requestError(e));
     } finally {
       setArchivingAll(false);
+      setIsConfirmDeleteAllOpen(false);
     }
   };
 
@@ -194,7 +228,11 @@ function Home({
             type="button"
             className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--accent-ink)] transition-colors hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)]"
             onClick={() => setNewTaskStatus(columns[0]?.id || 'todo')}
-            disabled={loadingTasks}
+            disabled={
+              loadingTasks ||
+              !columns.length ||
+              Boolean(workspaceId && storage.pending)
+            }
           >
             <svg
               className="h-4 w-4"
@@ -236,15 +274,26 @@ function Home({
           >
             Archive all
           </button>
+          <span className="text-xs" role="status">
+            {storage.status}
+          </span>
           <button
             type="button"
             className="auth-theme"
             title={accountEmail}
             onClick={() =>
-              void onSignOut().catch((cause) => setError(requestError(cause)))
+              workspaceId
+                ? (!storage.pending ||
+                    window.confirm(
+                      'There are unsaved cloud changes. Sign out and discard them?'
+                    )) &&
+                  void onSignOut().catch((cause) =>
+                    setError(requestError(cause))
+                  )
+                : onSignIn?.()
             }
           >
-            Sign out
+            {workspaceId ? 'Sign out' : 'Save to cloud'}
           </button>
           <button
             type="button"
@@ -280,20 +329,100 @@ function Home({
         </div>
       </header>
 
-      {error && (
+      {!workspaceId && (
+        <div className="board-notice">
+          <p>
+            Welcome! Start planning your work. Your board saves automatically in
+            this browser.
+          </p>
+          <p>Clearing browser data removes local work.</p>
+        </div>
+      )}
+      {(error || storage.error || draftError) && (
         <div role="alert" className="board-error">
-          <span>{error}</span>
+          <span>{storage.error || error || draftError}</span>
           <button
             type="button"
             onClick={() => {
               setError('');
-              setLoadingTasks(true);
-              setLoadAttempt((value) => value + 1);
+              attempt(storage.retry());
             }}
           >
-            Retry loading
+            Retry
           </button>
         </div>
+      )}
+      {workspaceId && (
+        <div className="board-notice">
+          <button
+            className="auth-theme"
+            disabled={Boolean(workspaceId && storage.pending) || loadingTasks}
+            onClick={() => setShowImport(true)}
+          >
+            Copy device work to cloud
+          </button>
+          {deviceDraft && (
+            <button
+              className="auth-theme"
+              onClick={() =>
+                setEditingTask({
+                  ...deviceDraft,
+                  id: '',
+                  status: columns.some((c) => c.id === deviceDraft.status)
+                    ? deviceDraft.status
+                    : columns[0].id,
+                })
+              }
+            >
+              Resume device task draft
+            </button>
+          )}
+        </div>
+      )}
+      {storage.latest && conflictHidden && (
+        <button className="auth-theme" onClick={() => setConflictHidden(false)}>
+          Review cloud conflict
+        </button>
+      )}
+      {storage.latest && storage.pending && !conflictHidden && (
+        <Dialog
+          title="Cloud save conflict"
+          onClose={() => setConflictHidden(true)}
+        >
+          <h2>Your cloud board changed</h2>
+          {error && <p role="alert">{error}</p>}
+          <p>
+            Review the latest cloud values and your proposed changes. Applying
+            your draft keeps unrelated cloud changes.
+          </p>
+          <div className="conflict-values">
+            <div>
+              <h3>Latest cloud value</h3>
+              <BoardValues board={storage.latest} />
+            </div>
+            <div>
+              <h3>Your proposed change</h3>
+              <BoardValues board={storage.pending} />
+            </div>
+          </div>
+          <button className="auth-secondary" onClick={storage.acceptLatest}>
+            Keep cloud value
+          </button>
+          <button
+            className="auth-primary"
+            onClick={() => attempt(storage.applyDraft())}
+          >
+            Apply draft against latest revision
+          </button>
+        </Dialog>
+      )}
+      {showImport && workspaceId && (
+        <GuestImport
+          workspaceId={workspaceId}
+          board={board}
+          onImported={storage.replace}
+          onClose={() => setShowImport(false)}
+        />
       )}
       {loadingTasks && (
         <p role="status" className="auth-note">
@@ -352,6 +481,8 @@ function Home({
       {newTaskStatus !== null && (
         <TaskModal
           workspaceId={workspaceId}
+          onSignIn={onSignIn}
+          onDraft={rememberDraft}
           task={{
             id: '',
             title: '',
@@ -366,7 +497,10 @@ function Home({
           onSave={async (changes) => {
             await createTask(changes);
           }}
-          onClose={() => setNewTaskStatus(null)}
+          onClose={() => {
+            clearDraft();
+            setNewTaskStatus(null);
+          }}
         />
       )}
 
@@ -391,7 +525,7 @@ function Home({
       {isConfirmDeleteAllOpen && (
         <ConfirmDeleteModal
           title="Archive all tasks?"
-          message="This moves all active tasks into the archive. Owners and admins can restore them."
+          message="This moves all active tasks into the archive. Device archives stay in this browser; cloud archives can be restored by owners and admins."
           confirmText={archivingAll ? 'Archiving…' : 'Archive all tasks'}
           onConfirm={confirmDeleteAllTasks}
           onClose={() => setIsConfirmDeleteAllOpen(false)}
@@ -401,10 +535,20 @@ function Home({
       {editingTask && (
         <TaskModal
           workspaceId={workspaceId}
+          onSignIn={onSignIn}
+          onDraft={rememberDraft}
+          key={editingTask.id || 'draft'}
           task={editingTask}
           columns={columns}
-          onSave={(changes) => updateTask(editingTask.id, changes)}
-          onClose={() => setEditingTask(null)}
+          onSave={(changes) =>
+            editingTask.id
+              ? updateTask(editingTask.id, changes)
+              : createTask(changes)
+          }
+          onClose={() => {
+            clearDraft();
+            setEditingTask(null);
+          }}
         />
       )}
     </div>
@@ -412,3 +556,27 @@ function Home({
 }
 
 export default Home;
+
+function BoardValues({ board }: { board: Board }) {
+  return (
+    <div className="conflict-board">
+      <p>Columns: {board.columns.map((c) => c.title).join(' → ')}</p>
+      {board.tasks.length === 0 && <p>No active tasks</p>}
+      {board.tasks.map((task) => (
+        <article key={task.id}>
+          <strong>{task.title}</strong>
+          <p>
+            {board.columns.find((c) => c.id === task.status)?.title} ·{' '}
+            {task.priority} priority
+          </p>
+          <p>{task.description || 'No description'}</p>
+          <p>
+            Started: {task.startedAt?.slice(0, 10) || '—'} · Due:{' '}
+            {task.dueDate?.slice(0, 10) || '—'} · Expected finish:{' '}
+            {task.expectedFinishAt?.slice(0, 10) || '—'}
+          </p>
+        </article>
+      ))}
+    </div>
+  );
+}

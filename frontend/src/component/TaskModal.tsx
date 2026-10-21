@@ -3,7 +3,9 @@ import type { Task, Column } from '../types/task.ts';
 import { apiRequest, requestError } from '../lib/api';
 
 interface TaskModalProps {
-  workspaceId: string;
+  workspaceId?: string;
+  onSignIn?: () => void;
+  onDraft?: (draft: Task) => void;
   task: Task;
   columns?: Column[];
   onSave: (
@@ -57,6 +59,8 @@ export function TaskModal({
   onSave,
   onClose,
   workspaceId,
+  onSignIn,
+  onDraft,
 }: TaskModalProps) {
   const isNewTask = !task.id;
   const [title, setTitle] = useState(task.title);
@@ -107,7 +111,12 @@ export function TaskModal({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || isSaving) return;
+      if (
+        event.key !== 'Escape' ||
+        isSaving ||
+        document.querySelector('dialog[open]')
+      )
+        return;
 
       if (confirmation) {
         setConfirmation(confirmation === 'discard' ? null : 'discard');
@@ -122,22 +131,36 @@ export function TaskModal({
   }, [confirmation, isSaving, requestClose]);
 
   useEffect(() => {
-    setTitle(task.title);
-    setDescription(task.description);
-    setSuggestedDescription(buildRecommendedDescription(task.title));
-    setSuggestionSource('local');
-    setStatus(task.status);
-    setPriority(task.priority);
-    setStartedAt(toDateInputString(task.startedAt));
-    setDueDate(toDateInputString(task.dueDate));
-    setExpectedFinishAt(toDateInputString(task.expectedFinishAt));
-    setError('');
-    setAiError('');
-    setIsSaving(false);
-    setIsRewriting(false);
-    setConfirmation(null);
-    setActiveField(null);
-  }, [task]);
+    onDraft?.({
+      ...task,
+      title,
+      description,
+      status,
+      priority,
+      startedAt: toDateOrNull(startedAt),
+      dueDate: toDateOrNull(dueDate),
+      expectedFinishAt: toDateOrNull(expectedFinishAt),
+    });
+  }, [
+    onDraft,
+    task,
+    title,
+    description,
+    status,
+    priority,
+    startedAt,
+    dueDate,
+    expectedFinishAt,
+  ]);
+  useEffect(() => {
+    if (!hasChanges) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasChanges]);
 
   useEffect(() => {
     if (suggestionSource === 'gemini') return;
@@ -147,6 +170,13 @@ export function TaskModal({
   }, [suggestionSource, title]);
 
   const handleRewrite = async () => {
+    if (!workspaceId) {
+      onSignIn?.();
+      setAiError(
+        'Sign in to use Gemini, then request a rewrite when you are ready.'
+      );
+      return;
+    }
     const trimmedTitle = title.trim();
 
     if (!trimmedTitle) {
@@ -243,6 +273,11 @@ export function TaskModal({
         aria-labelledby="edit-task-title"
         onSubmit={handleSubmit}
       >
+        {!workspaceId && (
+          <button type="button" className="auth-theme" onClick={onSignIn}>
+            Save to cloud
+          </button>
+        )}
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2
@@ -369,7 +404,11 @@ export function TaskModal({
                     onClick={handleRewrite}
                     disabled={isSaving || isRewriting}
                   >
-                    {isRewriting ? 'Rewriting...' : 'Rewrite with Gemini'}
+                    {isRewriting
+                      ? 'Rewriting...'
+                      : workspaceId
+                        ? 'Rewrite with Gemini'
+                        : 'Sign in to use Gemini'}
                   </button>
                   <button
                     type="button"

@@ -26,6 +26,17 @@ test('HTTP auth, task validation, archival errors and invitation configuration',
       return Response.json({ id: user, email: 'test@example.com' });
     if (url.includes('/workspace_members'))
       return Response.json({ workspace_id: workspace, role: 'member' });
+    if (url.includes('/rpc/load_board'))
+      return Response.json({
+        revision: 0,
+        columns: [{ id: 'todo', title: 'To Do' }],
+        tasks: [],
+      });
+    if (url.includes('/rpc/save_board') || url.includes('/rpc/import_board'))
+      return Response.json(
+        { code: '40001', message: 'Board revision conflict' },
+        { status: 409 }
+      );
     if (url.includes('/rpc/archive_task'))
       return Response.json(
         { code: '42501', message: 'Manager access required' },
@@ -43,6 +54,7 @@ test('HTTP auth, task validation, archival errors and invitation configuration',
     'Content-Type': 'application/json',
   };
   try {
+    assert.equal((await fetch(base + '/api/board')).status, 401);
     assert.equal((await fetch(base + '/api/tasks')).status, 401);
     assert.equal(calls.length, 0);
     assert.equal(
@@ -54,6 +66,46 @@ test('HTTP auth, task validation, archival errors and invitation configuration',
       401
     );
     assert.equal((await fetch(base + '/api/tasks', { headers })).status, 200);
+    assert.equal((await fetch(base + '/api/board', { headers })).status, 200);
+    const boardBody = {
+      revision: 0,
+      columns: [{ id: 'todo', title: 'To Do' }],
+      tasks: [],
+    };
+    assert.equal(
+      (
+        await fetch(base + '/api/board', {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(boardBody),
+        })
+      ).status,
+      409
+    );
+    assert.equal(
+      (
+        await fetch(base + '/api/board', {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ ...boardBody, columns: [] }),
+        })
+      ).status,
+      400
+    );
+    assert.equal(
+      (
+        await fetch(base + '/api/board/import', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            ...boardBody,
+            deviceId: user,
+            mapping: { todo: 'todo' },
+          }),
+        })
+      ).status,
+      409
+    );
     assert.ok(
       calls.some(
         (c) =>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Home from './pages/Home.tsx';
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
+import { AccountModal } from './component/AccountModal';
 import { AuthProvider } from './auth/AuthProvider';
 import { useAuth } from './auth/context';
 import { apiRequest, requestError } from './lib/api';
@@ -91,6 +92,28 @@ function PersonalBoard(theme: ThemeProps) {
     </>
   );
 }
+function GuestBoard(theme: ThemeProps) {
+  const { error } = useAuth();
+  const [authOpen, setAuthOpen] = useState(false);
+  return (
+    <>
+      {error && (
+        <p role="alert" className="auth-error">
+          {error}
+        </p>
+      )}
+      <Home
+        {...theme}
+        accountEmail=""
+        onSignOut={async () => {}}
+        onSignIn={() => setAuthOpen(true)}
+      />
+      {authOpen && (
+        <AccountModal {...theme} onClose={() => setAuthOpen(false)} />
+      )}
+    </>
+  );
+}
 function ProtectedBoard(theme: ThemeProps) {
   const { loading, session, recovery } = useAuth();
   if (loading)
@@ -99,15 +122,23 @@ function ProtectedBoard(theme: ThemeProps) {
         <p role="status">Checking your session…</p>
       </AuthLayout>
     );
-  if (!session) return <Navigate to="/signin" replace />;
   if (recovery) return <Navigate to="/reset-password" replace />;
-  return <PersonalBoard key={session.user.id} {...theme} />;
+  return session ? (
+    <PersonalBoard key={session.user.id} {...theme} />
+  ) : (
+    <GuestBoard {...theme} />
+  );
 }
 
 const THEME_KEY = 'kanban-theme';
 
 function getInitialTheme(): 'light' | 'dark' {
-  const stored = localStorage.getItem(THEME_KEY);
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem(THEME_KEY);
+  } catch {
+    /* theme still works */
+  }
   if (stored === 'light' || stored === 'dark') return stored;
   return window.matchMedia('(prefers-color-scheme: dark)').matches
     ? 'dark'
@@ -119,7 +150,11 @@ function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    localStorage.setItem(THEME_KEY, theme);
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* optional preference */
+    }
   }, [theme]);
 
   const toggleTheme = () => {

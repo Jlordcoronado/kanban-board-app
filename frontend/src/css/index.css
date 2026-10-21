@@ -307,3 +307,75 @@
     @apply min-h-screen;
   }
 }
+
+.board-dialog {
+  margin: auto;
+  width: min(95vw, 720px);
+  max-height: 92dvh;
+  overflow-y: auto;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--surface);
+}
+.board-dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+.dialog-close {
+  display: block;
+  margin-left: auto;
+}
+.account-dialog .auth-shell {
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+}
+.account-dialog .auth-panel {
+  width: 100%;
+  border: 0;
+  box-shadow: none;
+}
+.account-dialog .auth-toolbar {
+  display: none;
+}
+.board-notice {
+  padding: 0.75rem 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.board-dialog select {
+  display: block;
+  width: 100%;
+  margin: 0.4rem 0 1rem;
+  padding: 0.6rem;
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.conflict-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+.conflict-values pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 40vh;
+  overflow-y: auto;
+  font-size: 0.8rem;
+}
+
+.conflict-board {
+  max-height: 45dvh;
+  overflow-y: auto;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.conflict-board article {
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border);
+}
+.conflict-board article p {
+  white-space: pre-wrap;
+}
