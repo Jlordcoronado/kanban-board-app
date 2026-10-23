@@ -5,6 +5,7 @@ import {
   render,
   renderHook,
   screen,
+  within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 vi.mock('../src/auth/client', () => ({
@@ -221,7 +222,10 @@ it('opens saved tasks as details, edits directly from the menu, and keeps saved 
     screen.getByRole('dialog', { name: 'Task details' })
   ).toBeInTheDocument();
   expect(
-    screen.getByRole('heading', { name: 'Updated guest work' })
+    within(screen.getByRole('dialog', { name: 'Task details' })).getByRole(
+      'heading',
+      { name: 'Updated guest work' }
+    )
   ).toBeInTheDocument();
   expect(readGuest().board.tasks[0].title).toBe('Updated guest work');
   expect(localStorage.getItem('kanban-guest-editor-v1')).toBeNull();
@@ -240,7 +244,12 @@ it('restores an existing editor draft against saved details and clears it when d
   expect(screen.getByLabelText('Title')).toHaveValue('Recovered edit');
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
   await user.click(screen.getByRole('button', { name: 'Discard changes' }));
-  expect(screen.getByRole('heading', { name: task.title })).toBeInTheDocument();
+  expect(
+    within(screen.getByRole('dialog', { name: 'Task details' })).getByRole(
+      'heading',
+      { name: task.title }
+    )
+  ).toBeInTheDocument();
   expect(localStorage.getItem('kanban-guest-editor-v1')).toBeNull();
   expect(readGuest().board.tasks[0].title).toBe(task.title);
 });
@@ -281,19 +290,30 @@ it('keeps a guest editor and its draft through Gemini sign-in and account dismis
   vi.stubGlobal('fetch', fetch);
   render(<App />);
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'Add task', exact: true }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add task', exact: true })
+  );
   await user.type(screen.getByLabelText('Title'), 'Keep my Gemini draft');
-  await user.type(screen.getByLabelText('Description'), 'My original description');
-  await user.click(screen.getByRole('button', { name: 'Help write description' }));
+  await user.type(
+    screen.getByLabelText('Description'),
+    'My original description'
+  );
+  await user.click(
+    screen.getByRole('button', { name: 'Help write description' })
+  );
   expect(fetch).not.toHaveBeenCalled();
   const trigger = screen.getByRole('button', { name: 'Sign in to use Gemini' });
   await user.click(trigger);
   const account = screen.getByRole('dialog', { name: 'Log in' });
   expect(account).toHaveAttribute('open');
   fireEvent(account, new Event('cancel', { cancelable: true }));
-  expect(screen.getByRole('dialog', { name: 'New task' })).toHaveAttribute('open');
+  expect(screen.getByRole('dialog', { name: 'New task' })).toHaveAttribute(
+    'open'
+  );
   expect(trigger).toHaveFocus();
   expect(screen.getByLabelText('Title')).toHaveValue('Keep my Gemini draft');
-  expect(screen.getByLabelText('Description')).toHaveValue('My original description');
+  expect(screen.getByLabelText('Description')).toHaveValue(
+    'My original description'
+  );
   expect(fetch).not.toHaveBeenCalled();
 });

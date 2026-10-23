@@ -234,7 +234,10 @@ it('keeps cloud edits after failure and retries the latest form values into save
     screen.getByRole('dialog', { name: 'Task details' })
   ).toBeInTheDocument();
   expect(
-    screen.getByRole('heading', { name: 'Latest proposal' })
+    within(screen.getByRole('dialog', { name: 'Task details' })).getByRole(
+      'heading',
+      { name: 'Latest proposal' }
+    )
   ).toBeInTheDocument();
   expect(
     JSON.parse(String(request.mock.calls.at(-1)?.[1]?.body))
@@ -342,4 +345,54 @@ it('retains the editor and explicit cloud-conflict choices after a stale save', 
   });
   expect(payload.revision).toBe(3);
   expect(screen.getByLabelText('Title')).toHaveValue('My conflict draft');
+});
+
+it('retains failed archive confirmation and retries explicitly against the same cloud revision', async () => {
+  const { render, screen, within } = await import('@testing-library/react');
+  const { default: userEvent } = await import('@testing-library/user-event');
+  const { default: Home } = await import('../src/pages/Home');
+  request
+    .mockResolvedValueOnce(original)
+    .mockRejectedValueOnce(new ApiError('Archive unavailable', 503));
+  render(
+    <Home
+      workspaceId="workspace"
+      accountEmail="account@example.com"
+      onSignOut={vi.fn()}
+      theme="light"
+      onToggleTheme={vi.fn()}
+    />
+  );
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole('button', { name: 'Actions for Original task' })
+  );
+  await user.click(screen.getByRole('menuitem', { name: 'Archive task' }));
+  const dialog = screen.getByRole('dialog', { name: 'Archive this task?' });
+  expect(request).toHaveBeenCalledTimes(1);
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Archive task' })
+  );
+  expect(within(dialog).getByRole('alert')).toHaveTextContent(
+    'Archive unavailable'
+  );
+  expect(
+    screen.getByRole('button', { name: 'Original task', exact: true })
+  ).toBeInTheDocument();
+  expect(request).toHaveBeenCalledTimes(2);
+  request.mockImplementationOnce(async (_path, options) => ({
+    ...JSON.parse(String(options?.body)),
+    revision: 2,
+  }));
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Archive task' })
+  );
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(
+    JSON.parse(String(request.mock.calls.at(-1)?.[1]?.body))
+  ).toMatchObject({ revision: 1, tasks: [] });
+  expect(
+    screen.getByRole('button', { name: 'Add task', exact: true })
+  ).toHaveFocus();
+  expect(localStorage.getItem(GUEST_KEY)).toBeNull();
 });

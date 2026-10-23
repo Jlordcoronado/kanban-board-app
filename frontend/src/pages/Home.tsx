@@ -24,6 +24,7 @@ import { KanbanColumn } from '../component/KanbanColumn.tsx';
 import { TaskModal } from '../component/TaskModal.tsx';
 import { AddColumnModal } from '../component/AddColumnModal.tsx';
 import { ConfirmDeleteModal } from '../component/ConfirmDeleteModal.tsx';
+import { ArchiveTaskDialog } from '../component/ArchiveTaskDialog';
 
 interface HomeProps {
   addTaskRef?: RefObject<HTMLButtonElement | null>;
@@ -45,6 +46,10 @@ function Home({
   onSignIn,
 }: HomeProps) {
   const storage = useBoard(workspaceId);
+  const localAddTaskRef = useRef<HTMLButtonElement>(null);
+  const boardAddTaskRef = addTaskRef ?? localAddTaskRef;
+  const archiveReturnFocus = useRef<HTMLElement | null>(null);
+  const [taskToArchive, setTaskToArchive] = useState<Task | null>(null);
   const newTaskIdentity = useRef(crypto.randomUUID());
   const failedTaskSave = useRef<string | null>(null);
   const { board, loading: loadingTasks } = storage;
@@ -210,19 +215,17 @@ function Home({
       setError(requestError(e));
     }
   };
-  const deleteTask = async (id: string) => {
-    try {
-      await storage.change((b) => ({
-        ...b,
-        tasks: workspaceId
-          ? b.tasks.filter((t) => t.id !== id)
-          : b.tasks.map((t) =>
-              t.id === id ? { ...t, archivedAt: new Date().toISOString() } : t
-            ),
-      }));
-    } catch (e) {
-      setError(requestError(e));
-    }
+  const archiveTask = async (id: string) => {
+    await saveTaskChange(`archive:${id}`, (b) => ({
+      ...b,
+      tasks: workspaceId
+        ? b.tasks.filter((t) => t.id !== id)
+        : b.tasks.map((t) =>
+            t.id === id
+              ? { ...t, archivedAt: t.archivedAt || new Date().toISOString() }
+              : t
+          ),
+    }));
   };
   const confirmDeleteAllTasks = async () => {
     setArchivingAll(true);
@@ -318,7 +321,7 @@ function Home({
         </div>
         <div className="mt-3 mb-2 flex flex-wrap items-center gap-2">
           <button
-            ref={addTaskRef}
+            ref={boardAddTaskRef}
             type="button"
             className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--accent-ink)] transition-colors hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)]"
             onClick={() => setNewTaskStatus(columns[0]?.id || 'todo')}
@@ -484,7 +487,11 @@ function Home({
               tasks={tasks.filter((t) => t.status === col.id)}
               columns={columns}
               moveTask={moveTask}
-              deleteTask={deleteTask}
+              onArchiveTask={(task) => {
+                archiveReturnFocus.current =
+                  document.activeElement as HTMLElement;
+                setTaskToArchive(task);
+              }}
               dragOverColumn={dragOverColumn}
               setDragOverColumn={setDragOverColumn}
               openTask={openTask}
@@ -522,6 +529,23 @@ function Home({
           )}
         </div>
       </div>
+
+      {taskToArchive && (
+        <ArchiveTaskDialog
+          title={taskToArchive.title}
+          returnFocusRef={archiveReturnFocus}
+          onClose={() => {
+            if (!archiveReturnFocus.current?.isConnected)
+              archiveReturnFocus.current = boardAddTaskRef.current;
+            setTaskToArchive(null);
+          }}
+          onArchive={async () => {
+            await archiveTask(taskToArchive.id);
+            archiveReturnFocus.current = boardAddTaskRef.current;
+            setTaskToArchive(null);
+          }}
+        />
+      )}
 
       {newTaskStatus !== null && (
         <TaskModal

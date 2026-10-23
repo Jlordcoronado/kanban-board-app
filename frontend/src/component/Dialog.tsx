@@ -24,11 +24,12 @@ export function Dialog({
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const dialog = ref.current!;
-    const returnTo = returnFocusRef?.current ?? previous;
+    // Read on close: a successful action may remove its original trigger.
+    const restoreFocus = () => (returnFocusRef?.current ?? previous)?.focus();
     dialog.showModal();
     return () => {
       dialog.close();
-      returnTo?.focus();
+      restoreFocus();
     };
   }, [returnFocusRef]);
   return (

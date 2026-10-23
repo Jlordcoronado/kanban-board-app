@@ -251,10 +251,18 @@ it('keeps a task visible when archiving fails', async () => {
     screen.getByRole('button', { name: 'Actions for Keep this task' })
   );
   await user.click(screen.getByRole('menuitem', { name: 'Archive task' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent(
+  const confirmation = screen.getByRole('dialog', {
+    name: 'Archive this task?',
+  });
+  await user.click(
+    within(confirmation).getByRole('button', { name: 'Archive task' })
+  );
+  expect(within(confirmation).getByRole('alert')).toHaveTextContent(
     'Archive unavailable'
   );
-  expect(screen.getByText('Keep this task')).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Keep this task', exact: true })
+  ).toBeInTheDocument();
 });
 
 it('returns to the guest board when the backend rejects an expired token', async () => {
