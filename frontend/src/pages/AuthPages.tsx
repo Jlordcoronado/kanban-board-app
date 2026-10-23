@@ -135,7 +135,7 @@ export function AuthForm({
   return (
     <AuthLayout
       {...theme}
-      title={signup ? 'Create your account' : 'Sign in'}
+      title={signup ? 'Create your account' : 'Log in'}
       subtitle={
         signup
           ? 'A private space to organize your work.'
@@ -218,14 +218,14 @@ export function AuthForm({
             </Link>
           )}
           <button className="auth-primary" type="submit">
-            {busy ? 'Please wait…' : signup ? 'Create account' : 'Sign in'}
+            {busy ? 'Please wait…' : signup ? 'Create account' : 'Log in'}
           </button>
         </fieldset>
       </form>
       <p className="auth-footer">
         {signup ? 'Already have an account?' : 'New to jlord.dev?'}{' '}
         <Link to={signup ? '/signin' : '/signup'}>
-          {signup ? 'Sign in' : 'Create an account'}
+          {signup ? 'Log in' : 'Create an account'}
         </Link>
       </p>
     </AuthLayout>
@@ -299,7 +299,7 @@ export function ForgotPassword({
         </fieldset>
       </form>
       <p className="auth-footer">
-        <Link to="/signin">Back to sign in</Link>
+        <Link to="/signin">Back to log in</Link>
       </p>
     </AuthLayout>
   );
@@ -410,7 +410,7 @@ export function CheckEmail({
           Use a different email
         </Link>
         <br />
-        <Link to="/signin">Back to sign in</Link>
+        <Link to="/signin">Back to log in</Link>
       </p>
     </AuthLayout>
   );
@@ -506,7 +506,7 @@ export function AuthCallback(theme: ThemeProps) {
         {error || 'This link may have expired, or sign-in was canceled.'}
       </p>
       <p className="auth-footer">
-        <Link to="/signin">Return to sign in</Link>
+        <Link to="/signin">Return to log in</Link>
         <br />
         <Link to="/forgot-password">Request a password reset</Link>
       </p>

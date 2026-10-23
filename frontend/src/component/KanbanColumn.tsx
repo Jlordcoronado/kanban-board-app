@@ -9,7 +9,7 @@ interface KanbanColumnProps {
   columns?: Column[];
   moveTask: (id: string, newStatus: Task['status']) => void;
   deleteTask: (id: string) => void;
-  openTask: (task: Task) => void;
+  openTask: (task: Task, mode?: 'details' | 'edit') => void;
   dragOverColumn: Task['status'] | null;
   setDragOverColumn: (status: Task['status'] | null) => void;
   onRenameColumn?: (id: string, newTitle: string) => void;

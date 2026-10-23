@@ -37,6 +37,7 @@ const task = {
 };
 beforeEach(() => {
   localStorage.clear();
+  localStorage.setItem('kanban-account-choice-v1', 'seen');
   sessionStorage.clear();
   window.history.replaceState({}, '', '/');
   localStorage.setItem(
@@ -109,7 +110,7 @@ it('opens cloud access over a task draft, switches account forms, closes and res
   vi.stubGlobal('fetch', fetch);
   render(<App />);
   const user = userEvent.setup();
-  await user.click(screen.getAllByRole('button', { name: 'Add Task' })[0]);
+  await user.click(screen.getAllByRole('button', { name: 'Add task' })[0]);
   await user.type(screen.getByLabelText('Title'), 'Keep my draft');
   await user.type(
     screen.getByLabelText('Description'),
@@ -119,7 +120,7 @@ it('opens cloud access over a task draft, switches account forms, closes and res
     .getAllByRole('button', { name: 'Save to cloud' })
     .at(-1)!;
   await user.click(trigger);
-  const account = screen.getByRole('dialog', { name: 'Save to cloud' });
+  const account = screen.getByRole('dialog', { name: 'Log in' });
   expect(account).toHaveAttribute('open');
   expect(screen.getByRole('alert')).toHaveTextContent(
     'Cloud access is unavailable'
@@ -128,7 +129,7 @@ it('opens cloud access over a task draft, switches account forms, closes and res
   expect(screen.getByLabelText('Display name')).toBeInTheDocument();
   fireEvent(account, new Event('cancel', { cancelable: true }));
   expect(
-    screen.queryByRole('dialog', { name: 'Save to cloud' })
+    screen.queryByRole('dialog', { name: 'Create your account' })
   ).not.toBeInTheDocument();
   expect(trigger).toHaveFocus();
   expect(screen.getByLabelText('Title')).toHaveValue('Keep my draft');
@@ -140,7 +141,7 @@ it('opens cloud access over a task draft, switches account forms, closes and res
 it('restores a device editor draft after a callback/remount without submitting it', async () => {
   const view = render(<App />);
   const user = userEvent.setup();
-  await user.click(screen.getAllByRole('button', { name: 'Add Task' })[0]);
+  await user.click(screen.getAllByRole('button', { name: 'Add task' })[0]);
   await user.type(screen.getByLabelText('Title'), 'After redirect');
   view.unmount();
   render(<App />);
@@ -191,4 +192,108 @@ it('explicit reapplication recreates a task archived elsewhere and prevents a me
       { ...twoColumns, columns: [twoColumns.columns[0]], revision: 2 }
     )
   ).toThrow('Both devices removed different columns');
+});
+
+it('opens saved tasks as details, edits directly from the menu, and keeps saved details open', async () => {
+  saveGuest({ revision: 0, columns: defaultColumns(), tasks: [task] });
+  render(<App />);
+  const user = userEvent.setup();
+  const title = screen.getByRole('button', { name: task.title, exact: true });
+  await user.click(title);
+  expect(
+    screen.getByRole('dialog', { name: 'Task details' })
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText('Title')).not.toBeInTheDocument();
+  expect(localStorage.getItem('kanban-guest-editor-v1')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Close', exact: true }));
+  expect(title).toHaveFocus();
+  const actions = screen.getByRole('button', {
+    name: `Actions for ${task.title}`,
+  });
+  await user.click(actions);
+  await user.click(screen.getByRole('menuitem', { name: 'Edit task' }));
+  expect(screen.getByRole('dialog', { name: 'Edit task' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Title')).toHaveFocus();
+  await user.clear(screen.getByLabelText('Title'));
+  await user.type(screen.getByLabelText('Title'), 'Updated guest work');
+  await user.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(
+    screen.getByRole('dialog', { name: 'Task details' })
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', { name: 'Updated guest work' })
+  ).toBeInTheDocument();
+  expect(readGuest().board.tasks[0].title).toBe('Updated guest work');
+  expect(localStorage.getItem('kanban-guest-editor-v1')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Close', exact: true }));
+  expect(actions).toHaveFocus();
+});
+
+it('restores an existing editor draft against saved details and clears it when discarded', async () => {
+  saveGuest({ revision: 0, columns: defaultColumns(), tasks: [task] });
+  localStorage.setItem(
+    'kanban-guest-editor-v1',
+    JSON.stringify({ ...task, title: 'Recovered edit' })
+  );
+  render(<App />);
+  const user = userEvent.setup();
+  expect(screen.getByLabelText('Title')).toHaveValue('Recovered edit');
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+  expect(screen.getByRole('heading', { name: task.title })).toBeInTheDocument();
+  expect(localStorage.getItem('kanban-guest-editor-v1')).toBeNull();
+  expect(readGuest().board.tasks[0].title).toBe(task.title);
+});
+
+it('creates a new task directly and restores the Add task trigger', async () => {
+  render(<App />);
+  const user = userEvent.setup();
+  const add = screen.getByRole('button', { name: 'Add task', exact: true });
+  await user.click(add);
+  await user.type(
+    screen.getByLabelText('Title'),
+    'Create without confirmation'
+  );
+  await user.click(screen.getByRole('button', { name: 'Create task' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(readGuest().board.tasks[0].title).toBe('Create without confirmation');
+  expect(add).toHaveFocus();
+});
+
+it('keeps a restored new-task draft protected on cancellation', async () => {
+  localStorage.setItem(
+    'kanban-guest-editor-v1',
+    JSON.stringify({ ...task, id: '', title: 'Recovered new task' })
+  );
+  render(<App />);
+  const user = userEvent.setup();
+  expect(screen.getByLabelText('Title')).toHaveValue('Recovered new task');
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(
+    screen.getByRole('dialog', { name: 'Discard changes?' })
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Keep editing' }));
+  expect(screen.getByLabelText('Title')).toHaveValue('Recovered new task');
+});
+
+it('keeps a guest editor and its draft through Gemini sign-in and account dismissal', async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal('fetch', fetch);
+  render(<App />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Add task', exact: true }));
+  await user.type(screen.getByLabelText('Title'), 'Keep my Gemini draft');
+  await user.type(screen.getByLabelText('Description'), 'My original description');
+  await user.click(screen.getByRole('button', { name: 'Help write description' }));
+  expect(fetch).not.toHaveBeenCalled();
+  const trigger = screen.getByRole('button', { name: 'Sign in to use Gemini' });
+  await user.click(trigger);
+  const account = screen.getByRole('dialog', { name: 'Log in' });
+  expect(account).toHaveAttribute('open');
+  fireEvent(account, new Event('cancel', { cancelable: true }));
+  expect(screen.getByRole('dialog', { name: 'New task' })).toHaveAttribute('open');
+  expect(trigger).toHaveFocus();
+  expect(screen.getByLabelText('Title')).toHaveValue('Keep my Gemini draft');
+  expect(screen.getByLabelText('Description')).toHaveValue('My original description');
+  expect(fetch).not.toHaveBeenCalled();
 });

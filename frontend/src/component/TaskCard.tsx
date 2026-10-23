@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Task, Column } from '../types/task.ts';
 
 export interface TaskCardProps {
@@ -7,7 +7,7 @@ export interface TaskCardProps {
   columns?: Column[];
   moveTask: (id: string, newStatus: Task['status']) => void;
   deleteTask: (id: string) => void;
-  openTask: (task: Task) => void;
+  openTask: (task: Task, mode?: 'details' | 'edit') => void;
 }
 
 const priorityBadge: Record<Task['priority'], string> = {
@@ -66,6 +66,7 @@ export const TaskCard = ({
   openTask,
 }: TaskCardProps) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
   const [loadedAt] = useState(() => Date.now());
   const isOverdue =
     task.dueDate !== null &&
@@ -121,6 +122,7 @@ export const TaskCard = ({
             type="button"
             className="inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
             aria-label={`Actions for ${task.title}`}
+            ref={menuTrigger}
             aria-expanded={isMenuOpen}
             onClick={() => setIsMenuOpen((open) => !open)}
           >
@@ -166,7 +168,8 @@ export const TaskCard = ({
             className="block w-full cursor-pointer rounded px-2.5 py-1.5 text-left text-xs font-medium text-[var(--text)] hover:bg-[var(--surface)]"
             onClick={() => {
               setIsMenuOpen(false);
-              openTask(task);
+              menuTrigger.current?.focus();
+              openTask(task, 'edit');
             }}
             role="menuitem"
           >

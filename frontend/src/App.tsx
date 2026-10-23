@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Home from './pages/Home.tsx';
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
 import { AccountModal } from './component/AccountModal';
@@ -92,9 +92,21 @@ function PersonalBoard(theme: ThemeProps) {
     </>
   );
 }
-function GuestBoard(theme: ThemeProps) {
+interface AccountChoiceProps {
+  welcomeSeen: boolean;
+  rememberChoice: () => void;
+}
+function GuestBoard({
+  welcomeSeen,
+  rememberChoice,
+  ...theme
+}: ThemeProps & AccountChoiceProps) {
   const { error } = useAuth();
-  const [authOpen, setAuthOpen] = useState(false);
+  const [initialWelcome] = useState(!welcomeSeen && !error);
+  const [authOpen, setAuthOpen] = useState(initialWelcome);
+  const [welcome, setWelcome] = useState(initialWelcome);
+  const addTaskRef = useRef<HTMLButtonElement>(null);
+  const [initialDismissal, setInitialDismissal] = useState(initialWelcome);
   return (
     <>
       {error && (
@@ -104,18 +116,39 @@ function GuestBoard(theme: ThemeProps) {
       )}
       <Home
         {...theme}
+        addTaskRef={addTaskRef}
         accountEmail=""
         onSignOut={async () => {}}
-        onSignIn={() => setAuthOpen(true)}
+        onSignIn={() => {
+          setWelcome(false);
+          setAuthOpen(true);
+        }}
       />
       {authOpen && (
-        <AccountModal {...theme} onClose={() => setAuthOpen(false)} />
+        <AccountModal
+          {...theme}
+          welcome={welcome}
+          onChoice={rememberChoice}
+          returnFocusRef={initialDismissal ? addTaskRef : undefined}
+          onClose={() => {
+            rememberChoice();
+            setAuthOpen(false);
+            setInitialDismissal(false);
+          }}
+        />
       )}
     </>
   );
 }
-function ProtectedBoard(theme: ThemeProps) {
-  const { loading, session, recovery } = useAuth();
+function ProtectedBoard({
+  welcomeSeen,
+  rememberChoice,
+  ...theme
+}: ThemeProps & AccountChoiceProps) {
+  const { loading, session, recovery, error } = useAuth();
+  useEffect(() => {
+    if (!loading && (session || recovery || error)) rememberChoice();
+  }, [loading, session, recovery, error, rememberChoice]);
   if (loading)
     return (
       <AuthLayout {...theme} title="Opening your workspace">
@@ -126,8 +159,22 @@ function ProtectedBoard(theme: ThemeProps) {
   return session ? (
     <PersonalBoard key={session.user.id} {...theme} />
   ) : (
-    <GuestBoard {...theme} />
+    <GuestBoard
+      {...theme}
+      welcomeSeen={welcomeSeen}
+      rememberChoice={rememberChoice}
+    />
   );
+}
+
+const ACCOUNT_CHOICE_KEY = 'kanban-account-choice-v1';
+function hasAccountChoice() {
+  if (window.location.pathname !== '/') return true;
+  try {
+    return localStorage.getItem(ACCOUNT_CHOICE_KEY) === 'seen';
+  } catch {
+    return false;
+  }
 }
 
 const THEME_KEY = 'kanban-theme';
@@ -146,6 +193,15 @@ function getInitialTheme(): 'light' | 'dark' {
 }
 
 function App() {
+  const [welcomeSeen, setWelcomeSeen] = useState(hasAccountChoice);
+  const rememberChoice = useCallback(() => {
+    setWelcomeSeen(true);
+    try {
+      localStorage.setItem(ACCOUNT_CHOICE_KEY, 'seen');
+    } catch {
+      /* Keep the choice for this app session when storage is unavailable. */
+    }
+  }, []);
   const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme);
 
   useEffect(() => {
@@ -166,7 +222,16 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<ProtectedBoard {...props} />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedBoard
+                {...props}
+                welcomeSeen={welcomeSeen}
+                rememberChoice={rememberChoice}
+              />
+            }
+          />
           <Route
             path="/signin"
             element={<AuthForm key="signin" mode="signin" {...props} />}

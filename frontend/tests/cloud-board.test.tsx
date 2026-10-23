@@ -188,3 +188,158 @@ it('previews name mappings and copies only active guest tasks without changing l
   expect(payload.deviceId).toBe(guest.deviceId);
   expect(JSON.parse(localStorage.getItem(GUEST_KEY)!)).toEqual(guest);
 });
+
+it('keeps cloud edits after failure and retries the latest form values into saved details', async () => {
+  const { render, screen, fireEvent, within } =
+    await import('@testing-library/react');
+  const { default: userEvent } = await import('@testing-library/user-event');
+  const { default: Home } = await import('../src/pages/Home');
+  request
+    .mockResolvedValueOnce(original)
+    .mockRejectedValueOnce(new ApiError('Connection failed', 0));
+  render(
+    <Home
+      workspaceId="workspace"
+      accountEmail="account@example.com"
+      onSignOut={vi.fn()}
+      theme="light"
+      onToggleTheme={vi.fn()}
+    />
+  );
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole('button', { name: 'Original task', exact: true })
+  );
+  await user.click(
+    screen.getByRole('button', { name: 'Edit task', exact: true })
+  );
+  fireEvent.change(screen.getByLabelText('Title'), {
+    target: { value: 'First proposal' },
+  });
+  await user.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(screen.getByLabelText('Title')).toHaveValue('First proposal');
+  expect(
+    within(screen.getByRole('dialog', { name: 'Edit task' })).getByRole('alert')
+  ).toHaveTextContent('Your edits are still here');
+  expect(request).toHaveBeenCalledTimes(2);
+  fireEvent.change(screen.getByLabelText('Title'), {
+    target: { value: 'Latest proposal' },
+  });
+  request.mockImplementationOnce(async (_path, options) => ({
+    ...JSON.parse(String(options?.body)),
+    revision: 2,
+  }));
+  await user.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(
+    screen.getByRole('dialog', { name: 'Task details' })
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', { name: 'Latest proposal' })
+  ).toBeInTheDocument();
+  expect(
+    JSON.parse(String(request.mock.calls.at(-1)?.[1]?.body))
+  ).toMatchObject({ revision: 1, tasks: [{ title: 'Latest proposal' }] });
+  expect(localStorage.getItem(GUEST_KEY)).toBeNull();
+});
+
+it('retries failed cloud creation with the same task identity and closes only on success', async () => {
+  const { render, screen, fireEvent } = await import('@testing-library/react');
+  const { default: userEvent } = await import('@testing-library/user-event');
+  const { default: Home } = await import('../src/pages/Home');
+  request
+    .mockResolvedValueOnce(original)
+    .mockRejectedValueOnce(new ApiError('Connection failed', 0));
+  render(
+    <Home
+      workspaceId="workspace"
+      accountEmail="account@example.com"
+      onSignOut={vi.fn()}
+      theme="dark"
+      onToggleTheme={vi.fn()}
+    />
+  );
+  await screen.findByRole('button', { name: 'Original task', exact: true });
+  const user = userEvent.setup();
+  await user.click(
+    screen.getByRole('button', { name: 'Add task', exact: true })
+  );
+  fireEvent.change(screen.getByLabelText('Title'), {
+    target: { value: 'New cloud work' },
+  });
+  await user.click(screen.getByRole('button', { name: 'Create task' }));
+  expect(screen.getByLabelText('Title')).toHaveValue('New cloud work');
+  const first = JSON.parse(String(request.mock.calls.at(-1)?.[1]?.body));
+  request.mockImplementationOnce(async (_path, options) => ({
+    ...JSON.parse(String(options?.body)),
+    revision: 2,
+  }));
+  await user.click(screen.getByRole('button', { name: 'Create task' }));
+  const retried = JSON.parse(String(request.mock.calls.at(-1)?.[1]?.body));
+  expect(retried.tasks).toHaveLength(2);
+  expect(retried.tasks[1].id).toBe(first.tasks[1].id);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'New cloud work', exact: true })
+  ).toBeInTheDocument();
+});
+
+it('retains the editor and explicit cloud-conflict choices after a stale save', async () => {
+  const { render, screen, fireEvent } = await import('@testing-library/react');
+  const { default: userEvent } = await import('@testing-library/user-event');
+  const { default: Home } = await import('../src/pages/Home');
+  const latest = {
+    ...original,
+    revision: 3,
+    tasks: [{ ...original.tasks[0], description: 'Other device' }],
+  };
+  request
+    .mockResolvedValueOnce(original)
+    .mockRejectedValueOnce(new ApiError('Board changed', 409))
+    .mockResolvedValueOnce(latest);
+  render(
+    <Home
+      workspaceId="workspace"
+      accountEmail="account@example.com"
+      onSignOut={vi.fn()}
+      theme="light"
+      onToggleTheme={vi.fn()}
+    />
+  );
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole('button', { name: 'Original task', exact: true })
+  );
+  await user.click(
+    screen.getByRole('button', { name: 'Edit task', exact: true })
+  );
+  fireEvent.change(screen.getByLabelText('Title'), {
+    target: { value: 'My conflict draft' },
+  });
+  await user.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(
+    await screen.findByRole('dialog', { name: 'Cloud save conflict' })
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText('Title')).toHaveValue('My conflict draft');
+  expect(
+    screen.getByRole('button', { name: 'Keep cloud value' })
+  ).toBeInTheDocument();
+  request.mockImplementationOnce(async (_path, options) => ({
+    ...JSON.parse(String(options?.body)),
+    revision: 4,
+  }));
+  await user.click(
+    screen.getByRole('button', { name: 'Apply draft against latest revision' })
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Cloud save conflict' })
+    ).not.toBeInTheDocument()
+  );
+  const payload = JSON.parse(String(request.mock.calls.at(-1)?.[1]?.body));
+  expect(payload.tasks[0]).toMatchObject({
+    title: 'My conflict draft',
+    description: 'Other device',
+  });
+  expect(payload.revision).toBe(3);
+  expect(screen.getByLabelText('Title')).toHaveValue('My conflict draft');
+});

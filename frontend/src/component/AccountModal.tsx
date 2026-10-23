@@ -1,20 +1,42 @@
-import { useState } from 'react';
+import { useState, type RefObject } from 'react';
 import type { NavigateOptions } from 'react-router-dom';
 import { AuthForm, ForgotPassword, CheckEmail } from '../pages/AuthPages';
 import { Dialog } from './Dialog';
 import type { ThemeProps } from './AuthLayout';
 export function AccountModal({
   onClose,
+  welcome = false,
+  onChoice,
+  returnFocusRef,
   ...theme
-}: ThemeProps & { onClose: () => void }) {
-  const [page, setPage] = useState('/signin');
+}: ThemeProps & {
+  onClose: () => void;
+  welcome?: boolean;
+  onChoice?: () => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
+}) {
+  const [page, setPage] = useState(welcome ? '/welcome' : '/signin');
   const [details, setDetails] = useState<{ email?: string; kind?: string }>();
   const navigate = (path: string, options?: NavigateOptions) => {
     setPage(path);
     setDetails(options?.state);
   };
   return (
-    <Dialog title="Save to cloud" onClose={onClose}>
+    <Dialog
+      title={
+        page === '/welcome'
+          ? 'Welcome to jlord.dev'
+          : page === '/signup'
+            ? 'Create your account'
+            : page === '/forgot-password'
+              ? 'Reset your password'
+              : page === '/check-email'
+                ? 'Check your email'
+                : 'Log in'
+      }
+      onClose={onClose}
+      returnFocusRef={returnFocusRef}
+    >
       <div
         className="account-dialog"
         onClickCapture={(e) => {
@@ -27,7 +49,28 @@ export function AccountModal({
           }
         }}
       >
-        {page === '/forgot-password' ? (
+        {page === '/welcome' ? (
+          <div className="account-welcome">
+            <h1>Welcome to jlord.dev</h1>
+            <p>
+              Log in to access your cloud board, or try the board on this
+              device.
+            </p>
+            <button
+              className="auth-primary"
+              onClick={() => {
+                onChoice?.();
+                setPage('/signin');
+              }}
+            >
+              Log in
+            </button>
+            <button className="auth-secondary" onClick={onClose}>
+              Continue as guest
+            </button>
+            <p className="auth-note">Guest work saves in this browser.</p>
+          </div>
+        ) : page === '/forgot-password' ? (
           <ForgotPassword {...theme} onNavigate={navigate} />
         ) : page === '/check-email' ? (
           <CheckEmail {...theme} details={details} />

@@ -89,7 +89,7 @@ it('shows login failures and lets users reveal the password', async () => {
   expect(password).toHaveAttribute('type', 'text');
   await user.type(screen.getByLabelText('Email'), 'jordan@example.com');
   await user.type(password, 'wrong-password');
-  await user.click(screen.getByRole('button', { name: 'Sign in' }));
+  await user.click(screen.getByRole('button', { name: 'Log in' }));
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Check your email and password'
   );
@@ -104,7 +104,7 @@ it('signs in with email and opens the board on success', async () => {
   mount(<AuthForm mode="signin" {...theme} />);
   await user.type(screen.getByLabelText('Email'), 'jordan@example.com');
   await user.type(screen.getByLabelText('Password'), 'valid-password');
-  await user.click(screen.getByRole('button', { name: 'Sign in' }));
+  await user.click(screen.getByRole('button', { name: 'Log in' }));
   expect(await screen.findByText('Private board')).toBeInTheDocument();
   expect(sdk.signInWithPassword).toHaveBeenCalledWith({
     email: 'jordan@example.com',

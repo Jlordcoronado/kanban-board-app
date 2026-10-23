@@ -42,7 +42,7 @@ export async function apiRequest<T>(
         'Unable to refresh your session. Check your connection and try again.',
         503
       );
-    if (error || !data.session) {
+    if (error || !data.session?.access_token?.trim()) {
       invalidateRequests();
       window.dispatchEvent(new Event('auth-expired'));
       throw new ApiError('Please sign in to continue.', 401);

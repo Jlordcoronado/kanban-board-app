@@ -22,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let events = 0;
     const apply = (next: Session | null, isRecovery: boolean) => {
       if (!live) return;
+      if (!next?.access_token?.trim()) next = null;
       if (userId.current !== next?.user.id) invalidateRequests();
       userId.current = next?.user.id;
       setSession(next);

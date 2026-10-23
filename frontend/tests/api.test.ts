@@ -11,6 +11,25 @@ beforeEach(() => {
   });
 });
 describe('authenticated API client', () => {
+  it.each([null, {}, { access_token: '' }, { access_token: '   ' }])(
+    'expires a session without a usable token before sending a request: %j',
+    async (session) => {
+      sdk.getSession.mockResolvedValue({ data: { session }, error: null });
+      const fetcher = vi.fn();
+      const expired = vi.fn();
+      vi.stubGlobal('fetch', fetcher);
+      window.addEventListener('auth-expired', expired);
+      try {
+        await expect(apiRequest('/api/me')).rejects.toMatchObject({
+          status: 401,
+        });
+        expect(expired).toHaveBeenCalledOnce();
+        expect(fetcher).not.toHaveBeenCalled();
+      } finally {
+        window.removeEventListener('auth-expired', expired);
+      }
+    }
+  );
   it('attaches a current token and workspace to task and AI requests', async () => {
     const fetcher = vi
       .fn()

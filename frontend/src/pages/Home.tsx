@@ -1,4 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type RefObject,
+} from 'react';
 import { requestError } from '../lib/api';
 import { useBoard } from '../board/useBoard';
 import {
@@ -20,6 +26,7 @@ import { AddColumnModal } from '../component/AddColumnModal.tsx';
 import { ConfirmDeleteModal } from '../component/ConfirmDeleteModal.tsx';
 
 interface HomeProps {
+  addTaskRef?: RefObject<HTMLButtonElement | null>;
   workspaceId?: string;
   onSignIn?: () => void;
   accountEmail: string;
@@ -29,6 +36,7 @@ interface HomeProps {
 }
 
 function Home({
+  addTaskRef,
   theme,
   onToggleTheme,
   workspaceId,
@@ -38,6 +46,7 @@ function Home({
 }: HomeProps) {
   const storage = useBoard(workspaceId);
   const newTaskIdentity = useRef(crypto.randomUUID());
+  const failedTaskSave = useRef<string | null>(null);
   const { board, loading: loadingTasks } = storage;
   const tasks = activeTasks(board);
   const columns = board.columns;
@@ -86,6 +95,13 @@ function Home({
   const [editingTask, setEditingTask] = useState<Task | null>(() =>
     !workspaceId ? deviceDraft : null
   );
+  const [taskMode, setTaskMode] = useState<'details' | 'edit'>(
+    !workspaceId && deviceDraft ? 'edit' : 'details'
+  );
+  const openTask = (task: Task, mode: 'details' | 'edit' = 'details') => {
+    setTaskMode(mode);
+    setEditingTask(task);
+  };
   const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null);
 
   const [isAddColumnOpen, setIsAddColumnOpen] = useState(false);
@@ -146,8 +162,26 @@ function Home({
     | 'dueDate'
     | 'expectedFinishAt'
   >;
+  const saveTaskChange = async (id: string, update: (b: Board) => Board) => {
+    if (workspaceId && storage.pending) {
+      if (storage.latest || failedTaskSave.current !== id)
+        throw new Error(
+          'Resolve the pending cloud save before saving this task.'
+        );
+      // Retry this editor's proposal with its latest edits and the same revision.
+      await storage.persist(update(storage.pending));
+    } else {
+      try {
+        await storage.change(update);
+      } catch (cause) {
+        failedTaskSave.current = id;
+        throw cause;
+      }
+    }
+    failedTaskSave.current = null;
+  };
   const createTask = async (data: Changes) => {
-    await storage.change((b) => ({
+    await saveTaskChange(newTaskIdentity.current, (b) => ({
       ...b,
       tasks: [
         ...b.tasks.filter((t) => t.id !== newTaskIdentity.current),
@@ -160,12 +194,11 @@ function Home({
     newTaskIdentity.current = crypto.randomUUID();
   };
   const updateTask = async (id: string, changes: Changes) => {
-    await storage.change((b) => ({
+    await saveTaskChange(id, (b) => ({
       ...b,
       tasks: b.tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)),
     }));
     clearDraft();
-    setEditingTask(null);
   };
   const moveTask = async (id: string, status: string) => {
     try {
@@ -213,70 +246,13 @@ function Home({
 
   return (
     <div className="mx-auto min-h-screen max-w-[1400px] px-4 py-4 sm:px-5 sm:py-5 md:flex md:h-screen md:min-h-0 md:flex-col md:px-8 md:py-6">
-      <header className="mb-4 flex shrink-0 flex-col items-start justify-between gap-4 border-b border-[var(--border-subtle)] pb-4 sm:flex-row md:mb-5">
+      <header className="mb-4 flex shrink-0 items-center justify-between gap-4 border-b border-[var(--border-subtle)] pb-4 sm:flex-row md:mb-5">
         <div className="text-left">
           <h1 className="m-0 text-[1.65rem] font-bold tracking-tight text-[var(--text)]">
             jlord.dev
           </h1>
-          <p className="mt-1.5 text-sm text-[var(--text-muted)]">
-            {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} across{' '}
-            {columns.length} columns
-          </p>
         </div>
-        <div className="flex w-full min-w-0 flex-wrap items-center justify-start gap-2 sm:w-auto sm:justify-end">
-          <button
-            type="button"
-            className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--accent-ink)] transition-colors hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)]"
-            onClick={() => setNewTaskStatus(columns[0]?.id || 'todo')}
-            disabled={
-              loadingTasks ||
-              !columns.length ||
-              Boolean(workspaceId && storage.pending)
-            }
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Add Task
-          </button>
-          <button
-            type="button"
-            className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-semibold transition-colors ${
-              isMaxColumnsReached
-                ? 'cursor-not-allowed border-[var(--border-subtle)] bg-[var(--surface)] text-[var(--text-muted)] opacity-50'
-                : 'cursor-pointer border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
-            }`}
-            onClick={() => !isMaxColumnsReached && setIsAddColumnOpen(true)}
-            disabled={isMaxColumnsReached}
-            title={
-              isMaxColumnsReached
-                ? 'Maximum limit of 7 columns reached'
-                : 'Add a new column'
-            }
-          >
-            + Column
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 text-xs font-semibold text-[var(--danger)] transition-colors hover:bg-[var(--danger-border)]"
-            onClick={() => setIsConfirmDeleteAllOpen(true)}
-            disabled={archivingAll || loadingTasks}
-          >
-            Archive all
-          </button>
-          <span className="text-xs" role="status">
-            {storage.status}
-          </span>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             className="auth-theme"
@@ -293,7 +269,7 @@ function Home({
                 : onSignIn?.()
             }
           >
-            {workspaceId ? 'Sign out' : 'Save to cloud'}
+            {workspaceId ? 'Sign out' : 'Log in'}
           </button>
           <button
             type="button"
@@ -328,6 +304,72 @@ function Home({
           </button>
         </div>
       </header>
+
+      <section aria-labelledby="board-title" className="shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <h2 id="board-title" className="text-lg font-semibold">
+            Board
+          </h2>
+          <p className="text-sm text-[var(--text-muted)]">
+            {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} across{' '}
+            {columns.length} columns ·{' '}
+            <span role="status">{storage.status}</span>
+          </p>
+        </div>
+        <div className="mt-3 mb-2 flex flex-wrap items-center gap-2">
+          <button
+            ref={addTaskRef}
+            type="button"
+            className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--accent-ink)] transition-colors hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)]"
+            onClick={() => setNewTaskStatus(columns[0]?.id || 'todo')}
+            disabled={
+              loadingTasks ||
+              !columns.length ||
+              Boolean(workspaceId && storage.pending)
+            }
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Add task
+          </button>
+          <button
+            type="button"
+            className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-semibold transition-colors ${
+              isMaxColumnsReached
+                ? 'cursor-not-allowed border-[var(--border-subtle)] bg-[var(--surface)] text-[var(--text-muted)] opacity-50'
+                : 'cursor-pointer border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+            }`}
+            onClick={() => !isMaxColumnsReached && setIsAddColumnOpen(true)}
+            disabled={isMaxColumnsReached}
+            title={
+              isMaxColumnsReached
+                ? 'Maximum limit of 7 columns reached'
+                : 'Add a new column'
+            }
+          >
+            Add column
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent bg-transparent px-3 text-xs font-semibold text-[var(--danger)] transition-colors hover:bg-[var(--danger-bg)]"
+            onClick={() => setIsConfirmDeleteAllOpen(true)}
+            disabled={archivingAll || loadingTasks}
+          >
+            Archive all
+          </button>
+        </div>
+      </section>
 
       {!workspaceId && (
         <div className="board-notice">
@@ -365,13 +407,16 @@ function Home({
             <button
               className="auth-theme"
               onClick={() =>
-                setEditingTask({
-                  ...deviceDraft,
-                  id: '',
-                  status: columns.some((c) => c.id === deviceDraft.status)
-                    ? deviceDraft.status
-                    : columns[0].id,
-                })
+                openTask(
+                  {
+                    ...deviceDraft,
+                    id: '',
+                    status: columns.some((c) => c.id === deviceDraft.status)
+                      ? deviceDraft.status
+                      : columns[0].id,
+                  },
+                  'edit'
+                )
               }
             >
               Resume device task draft
@@ -442,7 +487,7 @@ function Home({
               deleteTask={deleteTask}
               dragOverColumn={dragOverColumn}
               setDragOverColumn={setDragOverColumn}
-              openTask={setEditingTask}
+              openTask={openTask}
               onRenameColumn={handleRenameColumn}
               onDeleteColumn={(id) => setDeletingColumnId(id)}
               onAddTask={(status) => setNewTaskStatus(status)}
@@ -537,8 +582,11 @@ function Home({
           workspaceId={workspaceId}
           onSignIn={onSignIn}
           onDraft={rememberDraft}
+          onEditorEnd={clearDraft}
           key={editingTask.id || 'draft'}
-          task={editingTask}
+          initialMode={taskMode}
+          initialDraft={editingTask}
+          task={tasks.find((task) => task.id === editingTask.id) ?? editingTask}
           columns={columns}
           onSave={(changes) =>
             editingTask.id

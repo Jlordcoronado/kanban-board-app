@@ -1,157 +1,122 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Task, Column } from '../types/task.ts';
 import { apiRequest, requestError } from '../lib/api';
+import { Dialog } from './Dialog';
+
+type Changes = Pick<
+  Task,
+  | 'title'
+  | 'description'
+  | 'priority'
+  | 'status'
+  | 'startedAt'
+  | 'dueDate'
+  | 'expectedFinishAt'
+>;
 
 interface TaskModalProps {
   workspaceId?: string;
   onSignIn?: () => void;
   onDraft?: (draft: Task) => void;
+  onEditorEnd?: () => void;
   task: Task;
+  initialMode?: 'details' | 'edit';
+  initialDraft?: Task;
   columns?: Column[];
-  onSave: (
-    changes: Pick<
-      Task,
-      | 'title'
-      | 'description'
-      | 'priority'
-      | 'status'
-      | 'startedAt'
-      | 'dueDate'
-      | 'expectedFinishAt'
-    >
-  ) => Promise<void>;
+  onSave: (changes: Changes) => Promise<void>;
   onClose: () => void;
 }
 
-const inputClass =
-  'w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 py-2.5 text-[0.95rem] text-[var(--text)] transition-[border-color,box-shadow] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_rgb(61_90_76/0.15)] focus:outline-none dark:focus:shadow-[0_0_0_3px_rgb(107_158_130/0.2)]';
-
-const btnBase =
-  'cursor-pointer rounded-md border px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]';
-
-const editableFieldClass =
-  'w-full cursor-pointer rounded-md border border-transparent px-3.5 py-2.5 text-left transition-colors hover:border-[var(--border)] hover:bg-[var(--surface-raised)] focus-visible:border-[var(--accent)] focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgb(61_90_76/0.15)]';
-
-function toDateInputString(value: string | null): string {
+function dateInput(value: string | null): string {
   if (!value) return '';
-
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-
-  return date.toISOString().slice(0, 10);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
 }
 
-function toDateOrNull(value: string): string | null {
-  return value ? value : null;
+function editableValues(task: Task): Changes {
+  return {
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    priority: task.priority,
+    startedAt: dateInput(task.startedAt) || null,
+    dueDate: dateInput(task.dueDate) || null,
+    expectedFinishAt: dateInput(task.expectedFinishAt) || null,
+  };
 }
 
-function buildRecommendedDescription(taskTitle: string): string {
-  if (!taskTitle.trim()) {
-    return 'Add a title to generate a recommended description.';
-  }
-
-  return 'Describe the work required, the important details or steps, and the outcome that will confirm it is complete.';
+function scheduleDate(value: string | null): string {
+  const day = dateInput(value);
+  if (!day) return 'Not set';
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
+    new Date(`${day}T12:00:00`)
+  );
 }
 
-export function TaskModal({
+// A different task always starts a fresh dialog and cancels outstanding AI work.
+export function TaskModal(props: TaskModalProps) {
+  return <TaskDialog key={props.task.id} {...props} />;
+}
+
+function TaskDialog({
   task,
-  columns,
+  columns = [],
   onSave,
   onClose,
   workspaceId,
   onSignIn,
   onDraft,
+  onEditorEnd,
+  initialMode = 'details',
+  initialDraft,
 }: TaskModalProps) {
-  const isNewTask = !task.id;
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description);
-  const [suggestedDescription, setSuggestedDescription] = useState(
-    buildRecommendedDescription(task.title)
+  const isNew = !task.id;
+  const [editor, setEditor] = useState(() =>
+    isNew || initialMode === 'edit'
+      ? {
+          base: editableValues(
+            isNew
+              ? {
+                  ...task,
+                  title: '',
+                  description: '',
+                  priority: 'medium',
+                  startedAt: null,
+                  dueDate: null,
+                  expectedFinishAt: null,
+                }
+              : task
+          ),
+          draft: editableValues(initialDraft ?? task),
+        }
+      : null
   );
-  const [suggestionSource, setSuggestionSource] = useState<'local' | 'gemini'>(
-    'local'
-  );
-  const [status, setStatus] = useState<string>(task.status);
-  const [priority, setPriority] = useState<Task['priority']>(task.priority);
-  const [startedAt, setStartedAt] = useState(toDateInputString(task.startedAt));
-  const [dueDate, setDueDate] = useState(toDateInputString(task.dueDate));
-  const [expectedFinishAt, setExpectedFinishAt] = useState(
-    toDateInputString(task.expectedFinishAt)
-  );
+  const [discardTo, setDiscardTo] = useState<'details' | 'close' | null>(null);
   const [error, setError] = useState('');
-  const [aiError, setAiError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [isRewriting, setIsRewriting] = useState(false);
-  const [confirmation, setConfirmation] = useState<'save' | 'discard' | null>(
-    null
-  );
-  const [activeField, setActiveField] = useState<
-    'title' | 'description' | null
-  >(null);
-
+  const saving = useRef(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [suggestion, setSuggestion] = useState('');
+  const [aiError, setAiError] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const aiRequest = useRef<AbortController | null>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const editRef = useRef<HTMLButtonElement>(null);
+  const helpId = 'task-description-help';
+  const isEditing = editor !== null;
   const hasChanges =
-    title !== task.title ||
-    description !== task.description ||
-    status !== task.status ||
-    priority !== task.priority ||
-    startedAt !== toDateInputString(task.startedAt) ||
-    dueDate !== toDateInputString(task.dueDate) ||
-    expectedFinishAt !== toDateInputString(task.expectedFinishAt);
-
-  const requestClose = useCallback(() => {
-    if (isSaving) return;
-
-    if (hasChanges) {
-      setConfirmation('discard');
-      return;
-    }
-
-    onClose();
-  }, [hasChanges, isSaving, onClose]);
+    editor !== null &&
+    JSON.stringify(editor.draft) !== JSON.stringify(editor.base);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key !== 'Escape' ||
-        isSaving ||
-        document.querySelector('dialog[open]')
-      )
-        return;
-
-      if (confirmation) {
-        setConfirmation(confirmation === 'discard' ? null : 'discard');
-        return;
-      }
-
-      requestClose();
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [confirmation, isSaving, requestClose]);
+    if (isEditing) titleRef.current?.focus();
+    else editRef.current?.focus();
+  }, [isEditing]);
 
   useEffect(() => {
-    onDraft?.({
-      ...task,
-      title,
-      description,
-      status,
-      priority,
-      startedAt: toDateOrNull(startedAt),
-      dueDate: toDateOrNull(dueDate),
-      expectedFinishAt: toDateOrNull(expectedFinishAt),
-    });
-  }, [
-    onDraft,
-    task,
-    title,
-    description,
-    status,
-    priority,
-    startedAt,
-    dueDate,
-    expectedFinishAt,
-  ]);
+    if (editor) onDraft?.({ ...task, ...editor.draft });
+  }, [editor, onDraft, task]);
+
   useEffect(() => {
     if (!hasChanges) return;
     const warn = (event: BeforeUnloadEvent) => {
@@ -162,431 +127,393 @@ export function TaskModal({
     return () => window.removeEventListener('beforeunload', warn);
   }, [hasChanges]);
 
-  useEffect(() => {
-    if (suggestionSource === 'gemini') return;
+  useEffect(() => () => aiRequest.current?.abort(), []);
 
-    setSuggestedDescription(buildRecommendedDescription(title));
+  const resetHelp = () => {
+    aiRequest.current?.abort();
+    aiRequest.current = null;
+    setHelpOpen(false);
+    setSuggestion('');
     setAiError('');
-  }, [suggestionSource, title]);
-
-  const handleRewrite = async () => {
+    setIsGenerating(false);
+  };
+  const endEditor = () => {
+    resetHelp();
+    setEditor(null);
+    setError('');
+    onEditorEnd?.();
+  };
+  const leave = (destination: 'details' | 'close') => {
+    if (saving.current) return;
+    if (hasChanges) {
+      setDiscardTo(destination);
+    } else if (destination === 'close') {
+      onClose();
+    } else {
+      endEditor();
+    }
+  };
+  const change = <K extends keyof Changes>(key: K, value: Changes[K]) => {
+    setEditor(
+      (current) =>
+        current && {
+          ...current,
+          draft: { ...current.draft, [key]: value },
+        }
+    );
+  };
+  const generate = async () => {
+    if (!editor || isGenerating) return;
     if (!workspaceId) {
-      onSignIn?.();
       setAiError(
-        'Sign in to use Gemini, then request a rewrite when you are ready.'
+        'Sign in to use Gemini, then generate a suggestion when you are ready.'
       );
+      onSignIn?.();
       return;
     }
-    const trimmedTitle = title.trim();
-
-    if (!trimmedTitle) {
+    const title = editor.draft.title.trim();
+    if (!title) {
       setAiError('Add a task title before using Gemini.');
       return;
     }
-
+    const controller = new AbortController();
+    aiRequest.current?.abort();
+    aiRequest.current = controller;
     setAiError('');
-    setIsRewriting(true);
-
+    setIsGenerating(true);
     try {
-      const data: unknown = await apiRequest('/api/ai/rewrite-task', {
-        method: 'POST',
-        workspaceId,
-        body: JSON.stringify({ title: trimmedTitle }),
-      });
-      const suggestion =
-        typeof data === 'object' &&
-        data !== null &&
-        'suggestedDescription' in data &&
-        typeof data.suggestedDescription === 'string'
+      const data = await apiRequest<{ suggestedDescription?: unknown }>(
+        '/api/ai/rewrite-task',
+        {
+          method: 'POST',
+          workspaceId,
+          signal: controller.signal,
+          body: JSON.stringify({ title }),
+        }
+      );
+      if (controller.signal.aborted) return;
+      const text =
+        typeof data?.suggestedDescription === 'string'
           ? data.suggestedDescription.trim()
           : '';
-
-      if (!suggestion) {
-        throw new Error('Gemini returned an empty suggestion');
-      }
-
-      setSuggestedDescription(suggestion);
-      setSuggestionSource('gemini');
+      if (!text)
+        throw new Error('Gemini returned an empty suggestion. Try again.');
+      if (text.length > 2000)
+        throw new Error('The suggestion is too long. Try generating again.');
+      setSuggestion(text);
     } catch (cause) {
-      setAiError(requestError(cause));
+      if (!controller.signal.aborted) setAiError(requestError(cause));
     } finally {
-      setIsRewriting(false);
+      if (!controller.signal.aborted) setIsGenerating(false);
     }
   };
-
-  const applySuggestedDescription = () => {
-    setDescription(suggestedDescription);
-  };
-
-  const saveChanges = async () => {
-    const trimmedTitle = title.trim();
-
-    if (!trimmedTitle) {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editor || saving.current) return;
+    const changes = { ...editor.draft, title: editor.draft.title.trim() };
+    if (!changes.title) {
       setError('Title is required.');
+      titleRef.current?.focus();
       return;
     }
-
     setError('');
+    saving.current = true;
     setIsSaving(true);
-
     try {
-      await onSave({
-        title: trimmedTitle,
-        description,
-        status,
-        priority,
-        startedAt: toDateOrNull(startedAt),
-        dueDate: toDateOrNull(dueDate),
-        expectedFinishAt: toDateOrNull(expectedFinishAt),
-      });
+      await onSave(changes);
+      if (!isNew) endEditor();
     } catch {
-      setError('Unable to save this task. Please try again.');
+      setError(
+        'Unable to save this task. Your edits are still here. Try saving again.'
+      );
+    } finally {
+      saving.current = false;
       setIsSaving(false);
     }
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (!title.trim()) {
-      setError('Title is required.');
-      return;
-    }
-
-    setError('');
-    setConfirmation('save');
-  };
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !confirmation)
-          requestClose();
-      }}
+    <Dialog
+      title={isEditing ? (isNew ? 'New task' : 'Edit task') : 'Task details'}
+      className="task-dialog"
+      hideClose
+      dismissOnBackdrop
+      onClose={() => leave('close')}
     >
-      <form
-        className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-md)]"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="edit-task-title"
-        onSubmit={handleSubmit}
-      >
-        {!workspaceId && (
-          <button type="button" className="auth-theme" onClick={onSignIn}>
-            Save to cloud
-          </button>
-        )}
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <h2
-              id="edit-task-title"
-              className="m-0 text-xl font-bold text-[var(--text)]"
-            >
-              {isNewTask ? 'New task' : 'Task details'}
-            </h2>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
-              {isNewTask
-                ? 'Add the details for this task.'
-                : 'Click any detail to update it.'}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="cursor-pointer rounded-md p-1 text-xl leading-none text-[var(--text-muted)] hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-            aria-label="Close edit task dialog"
-            onClick={requestClose}
-            disabled={isSaving}
-          >
-            ×
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          {isNewTask || activeField === 'title' ? (
-            <label className="block text-sm font-semibold text-[var(--text)]">
-              Title
-              <input
-                className={`${inputClass} mt-1.5`}
-                type="text"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                onBlur={() => !isNewTask && setActiveField(null)}
-                maxLength={200}
-                autoFocus={isNewTask || activeField === 'title'}
-                required
-              />
-            </label>
-          ) : (
-            <button
-              type="button"
-              className={editableFieldClass}
-              onClick={() => setActiveField('title')}
-              aria-label="Edit title"
-            >
-              <span className="block text-sm font-semibold text-[var(--text)]">
+      <header className="task-dialog-header">
+        <h2>
+          {isEditing ? (isNew ? 'New task' : 'Edit task') : 'Task details'}
+        </h2>
+        <button
+          type="button"
+          className="task-close"
+          aria-label="Close task dialog"
+          onClick={() => leave('close')}
+          disabled={isSaving}
+        >
+          ×
+        </button>
+      </header>
+      {editor ? (
+        <form className="task-form" onSubmit={submit}>
+          <div className="task-dialog-body">
+            <fieldset disabled={isSaving} className="task-fields">
+              <label className="task-field">
                 Title
-              </span>
-              <span className="mt-1 block break-words text-[0.95rem] font-semibold text-[var(--text)]">
-                {title || 'Untitled task'}
-              </span>
-            </button>
-          )}
-
-          {isNewTask || activeField === 'description' ? (
-            <label className="block text-sm font-semibold text-[var(--text)]">
-              Description
-              <textarea
-                className={`${inputClass} mt-1.5 min-h-24 resize-y`}
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                onBlur={() => !isNewTask && setActiveField(null)}
-                placeholder={suggestedDescription}
-                maxLength={2000}
-                rows={3}
-              />
-            </label>
-          ) : (
-            <button
-              type="button"
-              className={editableFieldClass}
-              onClick={() => setActiveField('description')}
-              aria-label="Edit description"
-            >
-              <span className="block text-sm font-semibold text-[var(--text)]">
-                Description
-              </span>
-              <span
-                className={`mt-1 block whitespace-pre-wrap break-words text-[0.95rem] font-normal leading-relaxed ${
-                  description
-                    ? 'text-[var(--text)]'
-                    : 'text-[var(--text-muted)]'
-                }`}
-              >
-                {description || 'Add a description'}
-              </span>
-            </button>
-          )}
-
-          {(isNewTask || activeField === 'description') && (
-            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-4 shadow-[var(--shadow-sm)]">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#8ab4ff_0%,#7c5cff_45%,#48d0b7_100%)] text-[#fff] shadow-[0_8px_20px_rgba(80,104,176,0.18)]">
-                    <svg
-                      className="h-4.5 w-4.5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M12 3l1.6 4.8L18.4 9.4l-4.8 1.5L12 15.7l-1.6-4.8L5.6 9.4l4.8-1.6L12 3Z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--text)]">
-                      Gemini suggestion
-                    </h3>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      Create a description from the current title
+                <input
+                  ref={titleRef}
+                  type="text"
+                  value={editor.draft.title}
+                  onChange={(e) => change('title', e.target.value)}
+                  maxLength={200}
+                  required
+                />
+              </label>
+              <div>
+                <label className="task-field">
+                  Description
+                  <textarea
+                    value={editor.draft.description}
+                    onChange={(e) => change('description', e.target.value)}
+                    placeholder="Describe the work and what done looks like."
+                    rows={5}
+                    maxLength={2000}
+                  />
+                </label>
+                <button
+                  className="task-help-toggle"
+                  type="button"
+                  aria-expanded={helpOpen}
+                  aria-controls={helpId}
+                  onClick={() => setHelpOpen((open) => !open)}
+                >
+                  <span aria-hidden="true">{helpOpen ? '−' : '+'}</span> Help
+                  write description
+                </button>
+                {helpOpen && (
+                  <div className="task-help" id={helpId}>
+                    <p>
+                      Use Gemini to suggest a description from your title.
+                      Review it before applying.
                     </p>
+                    <button
+                      className="task-button task-secondary"
+                      type="button"
+                      onClick={() => void generate()}
+                      disabled={isGenerating}
+                    >
+                      {isGenerating
+                        ? 'Generating…'
+                        : workspaceId
+                          ? 'Generate with Gemini'
+                          : 'Sign in to use Gemini'}
+                    </button>
+                    {isGenerating && (
+                      <p role="status">Generating a suggestion…</p>
+                    )}
+                    {aiError && (
+                      <p className="task-error" role="alert">
+                        {aiError}
+                      </p>
+                    )}
+                    {suggestion && (
+                      <div className="task-suggestion">
+                        <h3>Suggested description</h3>
+                        <p>{suggestion}</p>
+                        <button
+                          className="task-button task-secondary"
+                          type="button"
+                          disabled={isGenerating}
+                          onClick={() => change('description', suggestion)}
+                        >
+                          Apply suggestion
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className="cursor-pointer rounded-md border border-[var(--accent)] bg-[var(--accent)] px-2.5 py-1.5 text-xs font-semibold text-[#faf8f5] transition-colors hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={handleRewrite}
-                    disabled={isSaving || isRewriting}
+                )}
+              </div>
+              <div className="task-metadata-fields">
+                <label className="task-field">
+                  Status
+                  <select
+                    value={editor.draft.status}
+                    onChange={(e) => change('status', e.target.value)}
                   >
-                    {isRewriting
-                      ? 'Rewriting...'
-                      : workspaceId
-                        ? 'Rewrite with Gemini'
-                        : 'Sign in to use Gemini'}
-                  </button>
-                  <button
-                    type="button"
-                    className="cursor-pointer rounded-md border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-xs font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={applySuggestedDescription}
-                    disabled={
-                      isSaving || isRewriting || !suggestedDescription.trim()
+                    {!columns.some((col) => col.id === editor.draft.status) && (
+                      <option value={editor.draft.status}>
+                        {editor.draft.status || 'Not set'}
+                      </option>
+                    )}
+                    {columns.map((col) => (
+                      <option key={col.id} value={col.id}>
+                        {col.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="task-field">
+                  Priority
+                  <select
+                    value={editor.draft.priority}
+                    onChange={(e) =>
+                      change('priority', e.target.value as Task['priority'])
                     }
                   >
-                    Apply
-                  </button>
-                </div>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
               </div>
-              {aiError && (
-                <p
-                  className="mt-3 text-xs font-medium text-[var(--danger)]"
-                  role="alert"
-                >
-                  {aiError}
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {columns && columns.length > 0 && (
-              <label className="block text-sm font-semibold text-[var(--text)]">
-                Status / Column
-                <select
-                  className={`${inputClass} mt-1.5`}
-                  value={status}
-                  onChange={(event) => setStatus(event.target.value)}
-                >
-                  {columns.map((col) => (
-                    <option key={col.id} value={col.id}>
-                      {col.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="task-date-fields">
+                {(
+                  [
+                    ['startedAt', 'Start date'],
+                    ['dueDate', 'Due date'],
+                    ['expectedFinishAt', 'Target finish'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label className="task-field" key={key}>
+                    {label}
+                    <input
+                      type="date"
+                      value={editor.draft[key] || ''}
+                      onChange={(e) => change(key, e.target.value || null)}
+                    />
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </div>
+          <footer className="task-dialog-footer">
+            {error && (
+              <p className="task-error" role="alert">
+                {error}
+              </p>
             )}
-
-            <label className="block text-sm font-semibold text-[var(--text)]">
-              Priority
-              <select
-                className={`${inputClass} mt-1.5`}
-                value={priority}
-                onChange={(event) =>
-                  setPriority(event.target.value as Task['priority'])
-                }
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <label className="block text-sm font-semibold text-[var(--text)]">
-              Started
-              <input
-                className={`${inputClass} mt-1.5`}
-                type="date"
-                value={startedAt}
-                onChange={(event) => setStartedAt(event.target.value)}
-              />
-            </label>
-
-            <label className="block text-sm font-semibold text-[var(--text)]">
-              Due date
-              <input
-                className={`${inputClass} mt-1.5`}
-                type="date"
-                value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
-              />
-            </label>
-
-            <label className="block text-sm font-semibold text-[var(--text)]">
-              Expected finish
-              <input
-                className={`${inputClass} mt-1.5`}
-                type="date"
-                value={expectedFinishAt}
-                onChange={(event) => setExpectedFinishAt(event.target.value)}
-              />
-            </label>
-          </div>
-        </div>
-
-        {error && (
-          <p className="mt-3 text-sm text-[var(--danger)]" role="alert">
-            {error}
-          </p>
-        )}
-
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            className={`${btnBase} border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]`}
-            onClick={requestClose}
-            disabled={isSaving}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className={`${btnBase} border-[var(--accent)] bg-[var(--accent)] text-[#faf8f5] hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-60`}
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving…' : isNewTask ? 'Create task' : 'Save changes'}
-          </button>
-        </div>
-      </form>
-
-      {confirmation && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-          <div
-            className="w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-md)]"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="task-changes-confirmation-title"
-          >
-            <h2
-              id="task-changes-confirmation-title"
-              className="m-0 text-xl font-bold text-[var(--text)]"
-            >
-              {confirmation === 'save' ? 'Save changes?' : 'Disregard changes?'}
-            </h2>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
-              {confirmation === 'save'
-                ? 'Save the edits to this task, or close without saving them.'
-                : 'Your edits have not been saved.'}
-            </p>
-
-            <div className="mt-5 flex flex-wrap justify-end gap-2.5 border-t border-[var(--border-subtle)] pt-4">
-              {confirmation === 'save' ? (
+            <div className="task-actions">
+              {!workspaceId && onSignIn && (
                 <button
                   type="button"
-                  className={`${btnBase} border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]`}
-                  onClick={() => setConfirmation(null)}
+                  className="task-cloud"
+                  onClick={onSignIn}
+                  disabled={isSaving}
                 >
-                  Cancel
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className={`${btnBase} border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]`}
-                  onClick={() => setConfirmation(null)}
-                >
-                  Keep editing
+                  Save to cloud
                 </button>
               )}
               <button
+                className="task-button task-secondary"
                 type="button"
-                className={`${btnBase} border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)] hover:bg-[var(--danger-border)]`}
-                onClick={onClose}
+                onClick={() => leave(isNew ? 'close' : 'details')}
+                disabled={isSaving}
               >
-                Disregard changes
+                Cancel
               </button>
-              {confirmation === 'save' && (
-                <button
-                  type="button"
-                  className={`${btnBase} border-[var(--accent)] bg-[var(--accent)] text-[#faf8f5] hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)]`}
-                  onClick={() => {
-                    setConfirmation(null);
-                    void saveChanges();
-                  }}
-                >
-                  Save changes
-                </button>
-              )}
+              <button
+                className="task-button task-primary"
+                type="submit"
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving…' : isNew ? 'Create task' : 'Save changes'}
+              </button>
             </div>
+          </footer>
+        </form>
+      ) : (
+        <>
+          <div className="task-dialog-body task-details">
+            <h3 className="task-details-title">{task.title}</h3>
+            <div className="task-badges">
+              <span>
+                <span className="sr-only">Status: </span>
+                {columns.find((col) => col.id === task.status)?.title ||
+                  task.status ||
+                  'Not set'}
+              </span>
+              <span className={`task-priority-${task.priority}`}>
+                <span className="sr-only">Priority: </span>
+                {task.priority} priority
+              </span>
+            </div>
+            <section className="task-description" aria-label="Description">
+              <h4>Description</h4>
+              <p className={task.description.trim() ? '' : 'task-empty'}>
+                {task.description.trim() ? task.description : 'No description'}
+              </p>
+            </section>
+            <dl className="task-schedule">
+              {(
+                [
+                  ['startedAt', 'Start date'],
+                  ['dueDate', 'Due date'],
+                  ['expectedFinishAt', 'Target finish'],
+                ] as const
+              ).map(([key, label]) => (
+                <div key={key}>
+                  <dt>{label}</dt>
+                  <dd>{scheduleDate(task[key])}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
-        </div>
+          <footer className="task-dialog-footer task-actions">
+            <button
+              className="task-button task-secondary"
+              type="button"
+              onClick={() => leave('close')}
+            >
+              Close
+            </button>
+            <button
+              ref={editRef}
+              className="task-button task-primary"
+              type="button"
+              onClick={() => {
+                setEditor({
+                  base: editableValues(task),
+                  draft: editableValues(task),
+                });
+              }}
+            >
+              Edit task
+            </button>
+          </footer>
+        </>
       )}
-    </div>
+      {discardTo && (
+        <Dialog
+          title="Discard changes?"
+          className="task-discard"
+          hideClose
+          onClose={() => setDiscardTo(null)}
+        >
+          <h2>Discard changes?</h2>
+          <p>Your edits have not been saved.</p>
+          <div className="task-actions">
+            <button
+              className="task-button task-secondary"
+              type="button"
+              onClick={() => setDiscardTo(null)}
+            >
+              Keep editing
+            </button>
+            <button
+              className="task-button task-danger"
+              type="button"
+              onClick={() => {
+                const destination = discardTo;
+                setDiscardTo(null);
+                if (destination === 'close') onClose();
+                else endEditor();
+              }}
+            >
+              Discard changes
+            </button>
+          </div>
+        </Dialog>
+      )}
+    </Dialog>
   );
 }
