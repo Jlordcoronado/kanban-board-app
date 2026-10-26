@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
+import { gzipSync } from 'node:zlib';
 
 test('HTTP auth, task validation, archival errors and invitation configuration', async () => {
   process.env.NODE_ENV = 'test';
@@ -56,6 +57,23 @@ test('HTTP auth, task validation, archival errors and invitation configuration',
   try {
     assert.equal((await fetch(base + '/api/board')).status, 401);
     assert.equal((await fetch(base + '/api/tasks')).status, 401);
+    assert.equal(calls.length, 0);
+    // Malformed compressed input must not crash the API before authentication.
+    const compressed = Buffer.concat([
+      gzipSync('{}'),
+      Buffer.from('trailing bytes'),
+    ]);
+    const rejected = await fetch(base + '/api/tasks', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Encoding': 'gzip',
+      },
+      body: new Uint8Array(compressed),
+    });
+    assert.ok(rejected.status >= 400, 'Malformed compressed input is rejected');
+    await rejected.arrayBuffer();
+    assert.equal((await fetch(base + '/api/board')).status, 401);
     assert.equal(calls.length, 0);
     assert.equal(
       (

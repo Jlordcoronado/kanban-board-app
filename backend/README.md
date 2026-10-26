@@ -72,7 +72,11 @@ The API accepts validated snapshots with UUID task identities, bounded fields, a
 
 ## Verification boundaries
 
-Review current dependency advisories before deployment with `npm audit --omit=dev`. Audit counts change with registry data; no fresh audit result is asserted here. Dependency upgrades require a separate code change.
+Review current dependency advisories before deployment with `npm audit --omit=dev` and `npm audit`. The Docker entry point uses the development dependency `tsx`, so the full dependency audit also matters. At the 2026-10-26 security-update checkpoint, both backend audits reported zero advisories; the frontend production audit also reported zero. These results are a dated check, not a guarantee against future advisories.
+
+The compatible backend update includes body-parser 2.4.0, proxy-addr 2.0.8, tar 7.5.22, path-to-regexp 8.4.2, UUID 13.0.2, Zod 4.6.7, and tsx 4.23.15 with esbuild 0.28.2. The component lockfile records the resolved versions. A regression check sends malformed compressed input to the local API and confirms that the request is rejected, authentication remains enforced, and the process continues serving requests without cloud access.
+
+Verification under Node.js 22.23.4 passed all 16 backend tests, all 146 frontend tests, frontend lint, and both production builds. These isolated tests do not establish hosted sign-in or deployment readiness.
 
 Database tests apply the base schema and migrations to PGlite, an isolated PostgreSQL engine, with Supabase Auth tables/identity helpers represented by test fixtures. They exercise actual grants, RLS, functions, and transactional triggers. API tests use a fake Supabase transport. Neither sends real email or changes a hosted project.
 
