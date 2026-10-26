@@ -8,11 +8,11 @@ The frontend is a public client application. Keep backend secrets and private co
 
 `src/pages/PersonalWebsite.tsx` renders the hero and real dashboard preview, followed by Services and About. Four stacked services link to supporting work. About contains the professional introduction, an independent-project paragraph, six shared skill groups, and an anonymous reconciliation example. The main action remains **Contact me**, which opens an email draft. Profile links and app-entry destinations remain available alongside it.
 
-Public copy lives in the `services`, `introduction`, and `skillGroups` constants in that component. Scoped layout and typography live in `src/css/personal-website.css`. Archivo 600 headings and IBM Plex Sans 400/500 body text are served from `public/fonts/`, with OFL licenses. Application screens retain Inter and the existing theme tokens.
+Public copy lives in the `services`, `introduction`, `skillGroups`, and `kanbanProject` constants in that component. Scoped layout and typography live in `src/css/personal-website.css`. Archivo 600 headings and IBM Plex Sans 400/500 body text are served from `public/fonts/`, with OFL licenses. Application screens retain Inter and the existing theme tokens.
 
 The inspected light/dark dashboard captures are in `public/images/`, with paths, dimensions, and alternative text in `src/lib/projectPreview.ts`. They contain example tasks. **View full size** opens the native preview dialog; Escape closes it and restores focus. Services and About links move focus to their headings. The homepage does not initiate workspace or board reads.
 
-Projects, a full contact/footer section, and the separate `/kanban` product introduction remain planned.
+Projects follows About with one Kanban Desk case study, a lazy dashboard preview, source link, and `/try` app entry. It covers frontend/backend work, device/cloud separation, permissions, revision conflicts, and reviewable AI suggestions. Contact/Footer and `/kanban` remain the next website phases.
 
 ## Run locally
 
@@ -115,3 +115,5 @@ The website changes passed all 146 frontend tests, lint, and the production buil
 This source includes authentication integration; it does not establish that the public demo has been deployed with it. For the portfolio overview, see the [project README](../README.md).
 
 Services acceptance was rechecked on 27 October 2026 under Node 22: all four offers and supporting links, keyboard section navigation, both themes, narrow layouts, preview/contact actions, the full 146-test suite, lint, and production build passed.
+
+Projects passed the full 148-test frontend suite, lint, production build under Node 22, and 16 isolated Chromium responsive/theme/keyboard/contrast scenarios. Hero and Projects previews have distinct accessible names and independent failure handling.

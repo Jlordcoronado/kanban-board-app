@@ -77,7 +77,53 @@ const skillGroups = [
   },
 ];
 
-function ProjectPreview({ theme }: Pick<ThemeProps, 'theme'>) {
+const kanbanProject = {
+  name: 'Kanban Desk',
+  summary:
+    'A personal application for organizing tasks, workflow stages, priorities, and deadlines.',
+  source: 'https://github.com/Jlordcoronado/kanban-board-app',
+  stack: [
+    'React',
+    'TypeScript',
+    'Tailwind CSS',
+    'Node.js',
+    'Express',
+    'Supabase Auth',
+    'PostgreSQL',
+    'Google Gemini',
+  ],
+  work: [
+    {
+      title: 'Frontend and backend',
+      description:
+        'I built the board interactions, task details and editing, dashboard, API connections, validation, and persistence. Custom columns, priorities, dates, and archiving support the task workflow.',
+    },
+    {
+      title: 'Guest and cloud saving',
+      description:
+        'Guest work stays in browser storage. Optional accounts save through the backend to PostgreSQL. Copying guest tasks to a cloud board is an explicit choice; the original device board stays separate.',
+    },
+    {
+      title: 'Permissions and conflicts',
+      description:
+        'Personal boards are private. Existing team boards follow workspace membership and role permissions. Server-checked revisions detect outdated edits and let the user review changes before applying them.',
+    },
+    {
+      title: 'Reviewable AI suggestions',
+      description:
+        'The Gemini integration generates a description only when requested by a signed-in user. The suggestion is previewed before applying it to the draft, and saving the task is a separate action.',
+    },
+  ],
+};
+
+function ProjectPreview({
+  theme,
+  placement = 'hero',
+}: Pick<ThemeProps, 'theme'> & { placement?: 'hero' | 'project' }) {
+  const label =
+    placement === 'hero'
+      ? 'Hero dashboard preview'
+      : 'Kanban Desk project preview';
   const [enlarged, setEnlarged] = useState(false);
   const [failed, setFailed] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -87,18 +133,19 @@ function ProjectPreview({ theme }: Pick<ThemeProps, 'theme'>) {
       width={dashboardPreview.width}
       height={dashboardPreview.height}
       alt={dashboardPreview.alt}
-      fetchPriority="high"
+      fetchPriority={placement === 'hero' ? 'high' : 'auto'}
+      loading={placement === 'hero' ? 'eager' : 'lazy'}
       onError={() => setFailed(true)}
     />
   );
   const unavailable = (
     <p role="status" className="website-preview-error">
       The dashboard preview could not load. You can still explore Kanban Desk
-      using the link beside the introduction.
+      using the project link.
     </p>
   );
   return (
-    <figure className="website-project">
+    <figure className="website-project" aria-label={label}>
       <div className="website-preview-frame">
         {failed ? unavailable : preview}
       </div>
@@ -115,6 +162,7 @@ function ProjectPreview({ theme }: Pick<ThemeProps, 'theme'>) {
             type="button"
             disabled={failed}
             aria-haspopup="dialog"
+            aria-label={`View ${label.toLowerCase()} full size`}
             onClick={() => setEnlarged(true)}
           >
             View full size
@@ -123,7 +171,7 @@ function ProjectPreview({ theme }: Pick<ThemeProps, 'theme'>) {
       </figcaption>
       {enlarged && (
         <Dialog
-          title="Kanban Desk signed-in dashboard"
+          title={`${label} full size`}
           className="website-preview-dialog"
           returnFocusRef={trigger}
           onClose={() => setEnlarged(false)}
@@ -142,6 +190,7 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
   const { error } = useAuth();
   const servicesHeading = useRef<HTMLHeadingElement>(null);
   const aboutHeading = useRef<HTMLHeadingElement>(null);
+  const projectsHeading = useRef<HTMLHeadingElement>(null);
   const reconciliationHeading = useRef<HTMLHeadingElement>(null);
   const experience = useRef<HTMLParagraphElement>(null);
   return (
@@ -167,6 +216,14 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
             onClick={() => aboutHeading.current?.focus({ preventScroll: true })}
           >
             About
+          </a>
+          <a
+            href="#projects"
+            onClick={() =>
+              projectsHeading.current?.focus({ preventScroll: true })
+            }
+          >
+            Projects
           </a>
           <Link to="/try">Kanban Desk</Link>
           <a className="website-header-contact" href={contact}>
@@ -339,6 +396,63 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
               ))}
             </dl>
           </div>
+        </section>
+        <section className="website-projects" aria-labelledby="projects">
+          <h2 id="projects" ref={projectsHeading} tabIndex={-1}>
+            Projects
+          </h2>
+          <article aria-labelledby="kanban-project-title">
+            <div className="website-case-introduction">
+              <div>
+                <p className="website-case-kind">Personal project</p>
+                <h3 id="kanban-project-title">{kanbanProject.name}</h3>
+              </div>
+              <div>
+                <p>{kanbanProject.summary}</p>
+                <div className="website-actions">
+                  <Link className="website-button website-secondary" to="/try">
+                    Try Kanban Desk
+                  </Link>
+                  <a
+                    className="website-button website-secondary"
+                    href={kanbanProject.source}
+                  >
+                    View source on GitHub
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div className="website-case-study">
+              <ProjectPreview
+                key={`project-${theme}`}
+                theme={theme}
+                placement="project"
+              />
+              <dl className="website-case-work">
+                {kanbanProject.work.map((item) => (
+                  <div key={item.title}>
+                    <dt>{item.title}</dt>
+                    <dd>{item.description}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+            <div className="website-case-stack">
+              <h4>Built with</h4>
+              <ul role="list">
+                {kanbanProject.stack.map((tool) => (
+                  <li key={tool}>{tool}</li>
+                ))}
+              </ul>
+            </div>
+            <p className="website-case-status">
+              These capabilities are implemented and tested in the source. The
+              screenshots use example data; hosted account access and cloud
+              behavior have not been verified for this version. Team management,
+              invitation, archive browsing, and activity-history screens remain
+              planned.
+            </p>
+          </article>
         </section>
       </main>
     </div>

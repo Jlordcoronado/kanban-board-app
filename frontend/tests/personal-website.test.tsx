@@ -56,14 +56,22 @@ it('renders approved public copy and working contact, profile and app links with
 
 it('enlarges the labeled real dashboard preview, handles Escape, and restores focus', async () => {
   render(<App />);
-  const trigger = screen.getByRole('button', { name: 'View full size' });
-  const image = screen.getByRole('img');
+  const trigger = screen.getByRole('button', {
+    name: 'View hero dashboard preview full size',
+  });
+  const image = within(
+    screen.getByRole('figure', { name: 'Hero dashboard preview' })
+  ).getByRole('img');
   expect(image).toHaveAttribute('width', '1280');
   expect(image).toHaveAttribute('height', '959');
-  expect(screen.getByText('Signed-in dashboard')).toBeInTheDocument();
+  expect(
+    within(
+      screen.getByRole('figure', { name: 'Hero dashboard preview' })
+    ).getByText('Signed-in dashboard')
+  ).toBeInTheDocument();
   await userEvent.setup().click(trigger);
   const dialog = screen.getByRole('dialog', {
-    name: 'Kanban Desk signed-in dashboard',
+    name: 'Hero dashboard preview full size',
   });
   expect(dialog).toHaveAttribute('open');
   expect(within(dialog).getByRole('img')).toHaveAttribute(
@@ -75,7 +83,7 @@ it('enlarges the labeled real dashboard preview, handles Escape, and restores fo
   expect(trigger).toHaveFocus();
 });
 
-it.each(['Services', 'About'])(
+it.each(['Services', 'About', 'Projects'])(
   'moves focus to %s through its navigation link without loading application data',
   async (section) => {
     const fetcher = vi.fn();
@@ -107,17 +115,26 @@ it('switches and persists theme and shows a useful preview failure state', async
     .click(screen.getByRole('button', { name: 'Switch to dark mode' }));
   expect(document.documentElement).toHaveClass('dark');
   expect(localStorage.getItem('kanban-theme')).toBe('dark');
-  expect(screen.getByRole('img')).toHaveAttribute(
-    'src',
-    '/images/kanban-dashboard-dark.png'
+  expect(
+    within(
+      screen.getByRole('figure', { name: 'Hero dashboard preview' })
+    ).getByRole('img')
+  ).toHaveAttribute('src', '/images/kanban-dashboard-dark.png');
+  fireEvent.error(
+    within(
+      screen.getByRole('figure', { name: 'Hero dashboard preview' })
+    ).getByRole('img')
   );
-  fireEvent.error(screen.getByRole('img'));
   expect(screen.getByRole('status')).toHaveTextContent(
     'preview could not load'
   );
-  expect(screen.getByRole('button', { name: 'View full size' })).toBeDisabled();
   expect(
-    screen.getByRole('link', { name: 'Explore Kanban Desk' })
+    screen.getByRole('button', {
+      name: 'View hero dashboard preview full size',
+    })
+  ).toBeDisabled();
+  expect(
+    screen.getAllByRole('link', { name: 'Explore Kanban Desk' })[0]
   ).toHaveAttribute('href', '/try');
 });
 
@@ -146,7 +163,7 @@ it('preserves guest tasks, custom columns, storage keys and an editor draft when
   expect(localStorage.getItem(GUEST_DRAFT)).toBe(JSON.stringify(draft));
   await userEvent
     .setup()
-    .click(screen.getByRole('link', { name: 'Explore Kanban Desk' }));
+    .click(screen.getAllByRole('link', { name: 'Explore Kanban Desk' })[0]);
   expect(window.location.pathname).toBe('/try');
   expect(screen.getByRole('dialog', { name: 'Edit task' })).toBeInTheDocument();
   expect(screen.getByLabelText('Title')).toHaveValue('My unfinished edit');
@@ -154,4 +171,52 @@ it('preserves guest tasks, custom columns, storage keys and an editor draft when
   expect(
     screen.queryByRole('dialog', { name: 'Welcome to jlord.dev' })
   ).not.toBeInTheDocument();
+});
+
+it('presents one independent case study with lazy preview, source, implementation limits and reviewable suggestions', async () => {
+  render(<App />);
+  const region = screen.getByRole('region', { name: 'Projects', exact: true });
+  expect(within(region).getAllByRole('article')).toHaveLength(1);
+  expect(
+    within(region).getByRole('link', { name: 'View source on GitHub' })
+  ).toHaveAttribute(
+    'href',
+    'https://github.com/Jlordcoronado/kanban-board-app'
+  );
+  expect(
+    within(region).getByRole('link', { name: 'Try Kanban Desk' })
+  ).toHaveAttribute('href', '/try');
+  expect(
+    within(region).getByText(
+      /hosted account access and cloud behavior have not been verified/
+    )
+  ).toBeInTheDocument();
+  expect(
+    within(region).getByText(
+      /Copying guest tasks to a cloud board is an explicit choice/
+    )
+  ).toBeInTheDocument();
+  const preview = within(region).getByRole('figure', {
+    name: 'Kanban Desk project preview',
+  });
+  expect(within(preview).getByRole('img')).toHaveAttribute('loading', 'lazy');
+  expect(within(preview).getByRole('img')).toHaveAttribute('width', '1280');
+  const trigger = within(preview).getByRole('button', {
+    name: 'View kanban desk project preview full size',
+  });
+  await userEvent.setup().click(trigger);
+  const dialog = screen.getByRole('dialog', {
+    name: 'Kanban Desk project preview full size',
+  });
+  fireEvent.error(within(dialog).getByRole('img'));
+  expect(within(dialog).getByRole('status')).toHaveTextContent(
+    'preview could not load'
+  );
+  fireEvent(dialog, new Event('cancel', { cancelable: true }));
+  expect(trigger).toBeDisabled();
+  expect(
+    within(
+      screen.getByRole('figure', { name: 'Hero dashboard preview' })
+    ).getByRole('button')
+  ).toBeEnabled();
 });
