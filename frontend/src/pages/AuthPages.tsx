@@ -60,12 +60,13 @@ export function AuthForm({
   const [busy, setBusy] = useState(false);
   const routeNavigate = useNavigate();
   const navigate = (to: string, options?: NavigateOptions) => {
-    if (onNavigate && typeof to === 'string' && to !== '/')
-      onNavigate(to, options);
+    if (onNavigate && to !== '/dashboard') onNavigate(to, options);
     else routeNavigate(to as string, options);
   };
   if (!loading && session)
-    return <Navigate to={recovery ? '/reset-password' : '/'} replace />;
+    return (
+      <Navigate to={recovery ? '/reset-password' : '/dashboard'} replace />
+    );
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
@@ -98,7 +99,7 @@ export function AuthForm({
       }
       if (signup && !result.data.session)
         navigate('/check-email', { state: { email, kind: 'signup' } });
-      else navigate('/', { replace: true });
+      else navigate('/dashboard', { replace: true });
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -432,7 +433,7 @@ export function ResetPassword(theme: ThemeProps) {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw new Error(error.message);
       finishRecovery();
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -499,7 +500,9 @@ export function AuthCallback(theme: ThemeProps) {
       </AuthLayout>
     );
   if (session && !error)
-    return <Navigate to={recovery ? '/reset-password' : '/'} replace />;
+    return (
+      <Navigate to={recovery ? '/reset-password' : '/dashboard'} replace />
+    );
   return (
     <AuthLayout {...theme} title="Unable to finish sign-in">
       <p role="alert" className="auth-error">

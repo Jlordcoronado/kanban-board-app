@@ -261,6 +261,10 @@ export function DashboardShell({
         </div>
       </nav>
       <div className="shell-account-actions">
+        <Link className="shell-nav-link" to="/" onClick={closeDrawer}>
+          <Icon name="signout" />
+          <span className="shell-label">Personal website</span>
+        </Link>
         <NavLink
           className="shell-nav-link"
           to="/account"

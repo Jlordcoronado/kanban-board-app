@@ -57,7 +57,7 @@ beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   localStorage.setItem('kanban-account-choice-v1', 'seen');
-  window.history.replaceState({}, '', '/');
+  window.history.replaceState({}, '', '/dashboard');
   fixture.session = {
     access_token: 'test-session-only',
     user: { id: 'one', email: 'one@example.com' },
@@ -164,6 +164,72 @@ it('opens a filtered team task, saves an edit, and immediately updates dashboard
   expect(boards[personal.id].tasks[0].status).toBe('todo');
 });
 
+it('opens the homepage for an authenticated visitor without loading any workspaces or boards', async () => {
+  window.history.replaceState({}, '', '/');
+  render(<App />);
+  await waitFor(() =>
+    expect(
+      screen.getByRole('heading', { name: /I build full-stack applications/ })
+    ).toBeInTheDocument()
+  );
+  await waitFor(() => expect(fixture.auth.getSession).toHaveBeenCalled());
+  expect(requests).toHaveLength(0);
+  await userEvent
+    .setup()
+    .click(screen.getByRole('link', { name: 'Explore Kanban Desk' }));
+  expect(
+    await screen.findByRole('heading', { name: 'Dashboard', exact: true })
+  ).toBeInTheDocument();
+  expect(window.location.pathname).toBe('/dashboard');
+  expect(requests.filter(({ path }) => path === '/api/me')).toHaveLength(1);
+});
+
+it.each(['/dashboard/', '/DASHBOARD'])(
+  'preserves the router matching behavior for %s',
+  async (path) => {
+    window.history.replaceState({}, '', path);
+    render(<App />);
+    expect(
+      await screen.findByRole('heading', { name: 'Dashboard', exact: true })
+    ).toBeInTheDocument();
+  }
+);
+
+it('keeps an unrelated pending board save and unload protection across public/app navigation without rereading boards', async () => {
+  render(<App />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('link', { name: 'Personal board' }));
+  await user.click(screen.getByRole('button', { name: 'Add column' }));
+  await user.type(screen.getByLabelText('Column Name'), 'Review');
+  failNextSave = true;
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Add New Column' })).getByRole(
+      'button',
+      { name: 'Add Column', exact: true }
+    )
+  );
+  await screen.findByText('Temporary save failure');
+  // A failed column save lives in the account store, independently of editors.
+  const reads = requests.filter(({ method }) => method === 'GET').length;
+  await user.click(screen.getByRole('link', { name: 'Personal website' }));
+  expect(
+    await screen.findByRole('heading', {
+      name: /I build full-stack applications/,
+    })
+  ).toBeInTheDocument();
+  const event = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(true);
+  expect(requests.filter(({ method }) => method === 'GET')).toHaveLength(reads);
+  await user.click(screen.getByRole('link', { name: 'Explore Kanban Desk' }));
+  expect(
+    await screen.findByText('Unsaved changes in Personal.')
+  ).toBeInTheDocument();
+  expect(requests.filter(({ method }) => method === 'GET')).toHaveLength(reads);
+  await user.click(screen.getByRole('link', { name: 'Review pending save' }));
+  expect(screen.getByText('Temporary save failure')).toBeInTheDocument();
+});
+
 it('keeps Personal private, opens the team board, and hides manager-only bulk archive from members', async () => {
   const user = userEvent.setup();
   render(<App />);
@@ -255,21 +321,21 @@ it('rejects a direct URL for a workspace outside the account without requesting 
   ).toBe(true);
 });
 
-it('keeps dashboard access signed-in only and returns guests to their simple local board', async () => {
+it('keeps dashboard access signed-in only and returns guests to the public homepage', async () => {
   fixture.session = null;
   window.history.replaceState({}, '', '/dashboard');
   render(<App />);
   expect(
-    await screen.findByRole('button', { name: 'Log in' })
+    await screen.findByRole('link', { name: 'Explore Kanban Desk' })
   ).toBeInTheDocument();
   expect(
-    screen.getByRole('button', { name: 'Add task', exact: true })
-  ).toBeInTheDocument();
+    screen.queryByRole('button', { name: 'Add task' })
+  ).not.toBeInTheDocument();
   expect(
     screen.queryByRole('heading', { name: 'Dashboard', exact: true })
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByRole('navigation', { name: 'Main navigation' })
+    screen.queryByRole('complementary', { name: 'Sidebar' })
   ).not.toBeInTheDocument();
   expect(requests).toHaveLength(0);
 });

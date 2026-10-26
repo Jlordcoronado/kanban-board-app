@@ -40,7 +40,7 @@ beforeEach(() => {
   localStorage.clear();
   localStorage.setItem('kanban-account-choice-v1', 'seen');
   sessionStorage.clear();
-  window.history.replaceState({}, '', '/');
+  window.history.replaceState({}, '', '/try');
   localStorage.setItem(
     GUEST_KEY,
     JSON.stringify({

@@ -48,7 +48,7 @@ function mount(page: React.ReactNode, state: Partial<AuthState> = {}) {
         <Routes>
           <Route path="/form" element={page} />
           <Route path="/check-email" element={<CheckEmail {...theme} />} />
-          <Route path="/" element={<p>Private board</p>} />
+          <Route path="/dashboard" element={<p>Dashboard</p>} />
         </Routes>
       </MemoryRouter>
     </AuthContext.Provider>
@@ -95,7 +95,7 @@ it('shows login failures and lets users reveal the password', async () => {
   );
 });
 
-it('signs in with email and opens the board on success', async () => {
+it('signs in with email and opens the dashboard on success', async () => {
   sdk.signInWithPassword.mockResolvedValue({
     data: { session: { user: { id: 'user-a' } } },
     error: null,
@@ -105,7 +105,7 @@ it('signs in with email and opens the board on success', async () => {
   await user.type(screen.getByLabelText('Email'), 'jordan@example.com');
   await user.type(screen.getByLabelText('Password'), 'valid-password');
   await user.click(screen.getByRole('button', { name: 'Log in' }));
-  expect(await screen.findByText('Private board')).toBeInTheDocument();
+  expect(await screen.findByText('Dashboard')).toBeInTheDocument();
   expect(sdk.signInWithPassword).toHaveBeenCalledWith({
     email: 'jordan@example.com',
     password: 'valid-password',
@@ -131,6 +131,24 @@ it('uses Google OAuth and explains failures', async () => {
 it('shows a useful error for canceled or expired callbacks', () => {
   mount(<AuthCallback {...theme} />);
   expect(screen.getByRole('alert')).toHaveTextContent('expired');
+});
+
+it('sends a successful callback to the dashboard', async () => {
+  mount(<AuthCallback {...theme} />, {
+    session: { user: { id: 'user-a' } } as Session,
+  });
+  expect(await screen.findByText('Dashboard')).toBeInTheDocument();
+});
+
+it('preserves the failed-callback message even when a session exists', () => {
+  mount(<AuthCallback {...theme} />, {
+    session: { user: { id: 'user-a' } } as Session,
+    error: 'The sign-in link could not be used.',
+  });
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'The sign-in link could not be used.'
+  );
+  expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
 });
 it('requests password recovery without exposing account existence', async () => {
   const user = userEvent.setup();
@@ -162,7 +180,7 @@ it('saves a new password and finishes the recovery flow', async () => {
   expect(sdk.updateUser).toHaveBeenCalledWith({
     password: 'new-password-value',
   });
-  expect(await screen.findByText('Private board')).toBeInTheDocument();
+  expect(await screen.findByText('Dashboard')).toBeInTheDocument();
 });
 it('resends confirmation with a cooldown', async () => {
   vi.useFakeTimers();

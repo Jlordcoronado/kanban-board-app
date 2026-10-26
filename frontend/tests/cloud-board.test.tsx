@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 vi.mock('../src/lib/api', async (importOriginal) => ({
@@ -127,7 +128,7 @@ it('prompts once for unchanged guest work and keeps an explicit copy action avai
     onToggleTheme: vi.fn(),
   };
   const user = userEvent.setup();
-  const first = render(<Home {...props} />);
+  const first = render(<Home {...props} />, { wrapper: MemoryRouter });
   expect(
     await screen.findByRole('dialog', { name: 'Copy device work to cloud' })
   ).toBeInTheDocument();
@@ -136,7 +137,7 @@ it('prompts once for unchanged guest work and keeps an explicit copy action avai
     original.tasks
   );
   first.unmount();
-  render(<Home {...props} />);
+  render(<Home {...props} />, { wrapper: MemoryRouter });
   await waitFor(() =>
     expect(screen.getByRole('status')).toHaveTextContent('Saved to cloud')
   );
@@ -204,7 +205,8 @@ it('keeps cloud edits after failure and retries the latest form values into save
       onSignOut={vi.fn()}
       theme="light"
       onToggleTheme={vi.fn()}
-    />
+    />,
+    { wrapper: MemoryRouter }
   );
   const user = userEvent.setup();
   await user.click(
@@ -259,7 +261,8 @@ it('retries failed cloud creation with the same task identity and closes only on
       onSignOut={vi.fn()}
       theme="dark"
       onToggleTheme={vi.fn()}
-    />
+    />,
+    { wrapper: MemoryRouter }
   );
   await screen.findByRole('button', { name: 'Original task', exact: true });
   const user = userEvent.setup();
@@ -306,7 +309,8 @@ it('retains the editor and explicit cloud-conflict choices after a stale save', 
       onSignOut={vi.fn()}
       theme="light"
       onToggleTheme={vi.fn()}
-    />
+    />,
+    { wrapper: MemoryRouter }
   );
   const user = userEvent.setup();
   await user.click(
@@ -381,7 +385,8 @@ it('retains failed archive confirmation and retries explicitly against the same 
       onSignOut={vi.fn()}
       theme="light"
       onToggleTheme={vi.fn()}
-    />
+    />,
+    { wrapper: MemoryRouter }
   );
   const user = userEvent.setup();
   await user.click(

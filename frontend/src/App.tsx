@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import Home from './pages/Home.tsx';
 import {
   createBrowserRouter,
@@ -13,11 +7,14 @@ import {
   Route,
   Routes,
   useLocation,
+  matchPath,
 } from 'react-router-dom';
 import { AccountModal } from './component/AccountModal';
 import { AuthProvider } from './auth/AuthProvider';
 import { useAuth } from './auth/context';
 import SignedInApp from './pages/SignedInApp';
+import { AccountWorkspaceSession } from './board/AccountWorkspaceSession';
+import PersonalWebsite from './pages/PersonalWebsite';
 import { AuthLayout, type ThemeProps } from './component/AuthLayout';
 import {
   AuthCallback,
@@ -27,21 +24,9 @@ import {
   ResetPassword,
 } from './pages/AuthPages';
 
-interface AccountChoiceProps {
-  welcomeSeen: boolean;
-  rememberChoice: () => void;
-}
-function GuestBoard({
-  welcomeSeen,
-  rememberChoice,
-  ...theme
-}: ThemeProps & AccountChoiceProps) {
+function GuestBoard(theme: ThemeProps) {
   const { error } = useAuth();
-  const [initialWelcome] = useState(!welcomeSeen && !error);
-  const [authOpen, setAuthOpen] = useState(initialWelcome);
-  const [welcome, setWelcome] = useState(initialWelcome);
-  const addTaskRef = useRef<HTMLButtonElement>(null);
-  const [initialDismissal, setInitialDismissal] = useState(initialWelcome);
+  const [authOpen, setAuthOpen] = useState(false);
   return (
     <>
       {error && (
@@ -51,40 +36,21 @@ function GuestBoard({
       )}
       <Home
         {...theme}
-        addTaskRef={addTaskRef}
         accountEmail=""
         onSignOut={async () => {}}
-        onSignIn={() => {
-          setWelcome(false);
-          setAuthOpen(true);
-        }}
+        onSignIn={() => setAuthOpen(true)}
       />
       {authOpen && (
-        <AccountModal
-          {...theme}
-          welcome={welcome}
-          onChoice={rememberChoice}
-          returnFocusRef={initialDismissal ? addTaskRef : undefined}
-          onClose={() => {
-            rememberChoice();
-            setAuthOpen(false);
-            setInitialDismissal(false);
-          }}
-        />
+        <AccountModal {...theme} onClose={() => setAuthOpen(false)} />
       )}
     </>
   );
 }
-function ProtectedBoard({
-  welcomeSeen,
-  rememberChoice,
+function AppEntry({
+  guest = false,
   ...theme
-}: ThemeProps & AccountChoiceProps) {
-  const { loading, session, recovery, error } = useAuth();
-  const location = useLocation();
-  useEffect(() => {
-    if (!loading && (session || recovery || error)) rememberChoice();
-  }, [loading, session, recovery, error, rememberChoice]);
+}: ThemeProps & { guest?: boolean }) {
+  const { loading, session, recovery } = useAuth();
   if (loading)
     return (
       <AuthLayout {...theme} title="Opening your workspace">
@@ -92,26 +58,13 @@ function ProtectedBoard({
       </AuthLayout>
     );
   if (recovery) return <Navigate to="/reset-password" replace />;
-  if (!session && location.pathname !== '/') return <Navigate to="/" replace />;
-  return session ? (
-    <SignedInApp key={session.user.id} {...theme} />
-  ) : (
-    <GuestBoard
-      {...theme}
-      welcomeSeen={welcomeSeen}
-      rememberChoice={rememberChoice}
-    />
-  );
-}
-
-const ACCOUNT_CHOICE_KEY = 'kanban-account-choice-v1';
-function hasAccountChoice() {
-  if (window.location.pathname !== '/') return true;
-  try {
-    return localStorage.getItem(ACCOUNT_CHOICE_KEY) === 'seen';
-  } catch {
-    return false;
-  }
+  if (guest)
+    return session ? (
+      <Navigate to="/dashboard" replace />
+    ) : (
+      <GuestBoard {...theme} />
+    );
+  return session ? <SignedInApp {...theme} /> : <Navigate to="/" replace />;
 }
 
 const THEME_KEY = 'kanban-theme';
@@ -130,15 +83,6 @@ function getInitialTheme(): 'light' | 'dark' {
 }
 
 function Application() {
-  const [welcomeSeen, setWelcomeSeen] = useState(hasAccountChoice);
-  const rememberChoice = useCallback(() => {
-    setWelcomeSeen(true);
-    try {
-      localStorage.setItem(ACCOUNT_CHOICE_KEY, 'seen');
-    } catch {
-      /* Keep the choice for this app session when storage is unavailable. */
-    }
-  }, []);
   const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme);
 
   useEffect(() => {
@@ -157,34 +101,63 @@ function Application() {
   const props = { theme, onToggleTheme: toggleTheme };
   return (
     <AuthProvider>
-      <Routes>
-        <Route
-          path="/*"
-          element={
-            <ProtectedBoard
-              {...props}
-              welcomeSeen={welcomeSeen}
-              rememberChoice={rememberChoice}
-            />
-          }
-        />
-        <Route
-          path="/signin"
-          element={<AuthForm key="signin" mode="signin" {...props} />}
-        />
-        <Route
-          path="/signup"
-          element={<AuthForm key="signup" mode="signup" {...props} />}
-        />
-        <Route path="/check-email" element={<CheckEmail {...props} />} />
-        <Route
-          path="/forgot-password"
-          element={<ForgotPassword {...props} />}
-        />
-        <Route path="/reset-password" element={<ResetPassword {...props} />} />
-        <Route path="/auth/callback" element={<AuthCallback {...props} />} />
-      </Routes>
+      <ApplicationRoutes {...props} />
     </AuthProvider>
+  );
+}
+
+function ApplicationRoutes(theme: ThemeProps) {
+  const { session, loading, recovery } = useAuth();
+  const { pathname } = useLocation();
+  const appRoute = ['/dashboard', '/account', '/boards/:workspaceId'].some(
+    (path) => matchPath(path, pathname)
+  );
+  useEffect(() => {
+    document.title =
+      pathname === '/'
+        ? 'Jaylord Coronado | Full-Stack Software Engineer'
+        : 'Kanban Desk';
+  }, [pathname]);
+  if (
+    recovery &&
+    pathname !== '/reset-password' &&
+    pathname !== '/auth/callback'
+  )
+    return <Navigate to="/reset-password" replace />;
+  const routes = (
+    <Routes>
+      <Route path="/" element={<PersonalWebsite {...theme} />} />
+      <Route path="/try" element={<AppEntry {...theme} guest />} />
+      <Route
+        path="/signin"
+        element={<AuthForm key="signin" mode="signin" {...theme} />}
+      />
+      <Route
+        path="/signup"
+        element={<AuthForm key="signup" mode="signup" {...theme} />}
+      />
+      <Route path="/check-email" element={<CheckEmail {...theme} />} />
+      <Route path="/forgot-password" element={<ForgotPassword {...theme} />} />
+      <Route path="/reset-password" element={<ResetPassword {...theme} />} />
+      <Route path="/auth/callback" element={<AuthCallback {...theme} />} />
+      <Route
+        path="/*"
+        element={
+          appRoute ? <AppEntry {...theme} /> : <Navigate to="/" replace />
+        }
+      />
+    </Routes>
+  );
+  return session ? (
+    <AccountWorkspaceSession
+      key={session.user.id}
+      {...theme}
+      active={appRoute && !loading && !recovery}
+    >
+      {routes}
+    </AccountWorkspaceSession>
+  ) : (
+    routes
   );
 }
 

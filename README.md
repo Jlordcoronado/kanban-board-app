@@ -14,7 +14,7 @@ When work is spread across notes, messages, and disconnected lists, it becomes d
 
 ## What users can do
 
-- Start immediately on a guest board saved in this browser, or create an account, confirm an email address, sign in with email/password or Google, and recover account access.
+- Open the personal homepage at `/`, then choose **Explore Kanban Desk** to use a guest board at `/try`, saved in this browser. Optional accounts support email confirmation, email/password or Google sign-in, and account recovery.
 - Work on a private cloud board when signed in; copy device work with a preview and keep the original guest board.
 - Organise work across up to seven persistent workflow columns.
 - Create, edit, move, and archive tasks without leaving the board.
@@ -76,7 +76,7 @@ The repository includes separate setup documentation for developers who want to 
 
 ## Current status
 
-The source includes guest boards, optional cloud accounts, revision conflict review, task archiving, account recovery, and automated tests. Signed-in users have a dashboard with task counts, overdue work, upcoming deadlines, workspace filters, and a collapsible sidebar. Personal boards remain private; existing team boards are available to their members. Account settings includes identity, appearance, and password recovery. The backend also implements team creation, role management, email invitations, archive restoration, and activity history; frontend screens for those management features remain planned, including invitation acceptance.
+The source includes a public personal homepage with contact links and a dashboard preview, guest boards, optional cloud accounts, revision conflict review, task archiving, account recovery, and automated tests. The homepage remains public for signed-in visitors; opening `/try` while signed in continues to `/dashboard`. Signed-in users have a dashboard with task counts, overdue work, upcoming deadlines, workspace filters, and a collapsible sidebar. Personal boards remain private; existing team boards are available to their members. Account settings includes identity, appearance, and password recovery. The backend also implements team creation, role management, email invitations, archive restoration, and activity history; frontend screens for those management features remain planned, including invitation acceptance.
 
 Tasks, columns, renames, and archive actions persist across refreshes. Cloud writes use server-checked revisions and transactional task/column updates; outdated changes require review before applying. Failed saves retain work with an explicit retry. Clearing browser data removes guest work. The old SQLite database is not copied into Supabase automatically.
 

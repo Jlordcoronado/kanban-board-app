@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -356,7 +357,7 @@ it('moves a dragged task between columns without opening it, and does not reorde
 });
 
 it('confirms task archiving, cancels to the trigger, and focuses Add task after successful persistence', async () => {
-  render(<Home {...homeProps} />);
+  render(<Home {...homeProps} />, { wrapper: MemoryRouter });
   const user = userEvent.setup();
   const trigger = screen.getByRole('button', {
     name: `Actions for ${task.title}`,
@@ -385,7 +386,7 @@ it('confirms task archiving, cancels to the trigger, and focuses Add task after 
 });
 
 it('retains archive confirmation after browser saving fails, even if the optimistic card disappears, and retries', async () => {
-  render(<Home {...homeProps} />);
+  render(<Home {...homeProps} />, { wrapper: MemoryRouter });
   const user = userEvent.setup();
   await user.click(
     screen.getByRole('button', { name: `Actions for ${task.title}` })
@@ -424,7 +425,7 @@ it('preserves column deletion confirmation and moves its tasks to the first rema
     columns: defaultColumns(),
     tasks: [{ ...task, status: 'done' }],
   });
-  render(<Home {...homeProps} />);
+  render(<Home {...homeProps} />, { wrapper: MemoryRouter });
   const user = userEvent.setup();
   const trigger = screen.getByRole('button', {
     name: 'Actions for column Done',
@@ -447,7 +448,7 @@ it('preserves column deletion confirmation and moves its tasks to the first rema
 });
 
 it('returns to Add task when cancelling after a failed local archive has removed the original trigger', async () => {
-  render(<Home {...homeProps} />);
+  render(<Home {...homeProps} />, { wrapper: MemoryRouter });
   const user = userEvent.setup();
   await user.click(
     screen.getByRole('button', { name: `Actions for ${task.title}` })

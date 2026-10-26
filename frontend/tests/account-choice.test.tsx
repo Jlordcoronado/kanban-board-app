@@ -10,71 +10,45 @@ vi.mock('../src/auth/client', () => ({
 }));
 import App from '../src/App';
 
-const choiceKey = 'kanban-account-choice-v1';
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
-  window.history.replaceState({}, '', '/');
+  window.history.replaceState({}, '', '/try');
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
 });
 
-it.each(['guest', 'close', 'escape'])(
-  'remembers first-visit dismissal by %s and focuses Add task',
+it.each(['close', 'escape'])(
+  'opens guest access without a welcome prompt and restores login focus after %s',
   async (method) => {
-    const view = render(<App />);
-    const user = userEvent.setup();
-    const welcome = screen.getByRole('dialog', {
-      name: 'Welcome to jlord.dev',
-    });
-    expect(welcome).toHaveAttribute('open');
-    expect(
-      within(welcome).getByText('Guest work saves in this browser.')
-    ).toBeInTheDocument();
-    if (method === 'escape')
-      fireEvent(welcome, new Event('cancel', { cancelable: true }));
-    else
-      await user.click(
-        within(welcome).getByRole('button', {
-          name: method === 'guest' ? 'Continue as guest' : 'Close',
-        })
-      );
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Add task', exact: true })
-    ).toHaveFocus();
-    expect(localStorage.getItem(choiceKey)).toBe('seen');
-    view.unmount();
     render(<App />);
+    const user = userEvent.setup();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     const trigger = screen.getByRole('button', { name: 'Log in', exact: true });
     await user.click(trigger);
     const login = screen.getByRole('dialog', { name: 'Log in' });
     expect(within(login).getByLabelText('Email')).toBeInTheDocument();
-    await user.click(within(login).getByRole('button', { name: 'Close' }));
+    if (method === 'escape')
+      fireEvent(login, new Event('cancel', { cancelable: true }));
+    else await user.click(within(login).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   }
 );
 
-it('remembers Log in immediately, switches forms in the same dialog, and focuses the board on initial dismissal', async () => {
+it('switches account forms in the same dialog', async () => {
   render(<App />);
   const user = userEvent.setup();
-  const welcome = screen.getByRole('dialog', { name: 'Welcome to jlord.dev' });
-  await user.click(within(welcome).getByRole('button', { name: 'Log in' }));
-  expect(localStorage.getItem(choiceKey)).toBe('seen');
-  expect(screen.getByRole('dialog', { name: 'Log in' })).toBe(welcome);
+  await user.click(screen.getByRole('button', { name: 'Log in' }));
+  const login = screen.getByRole('dialog', { name: 'Log in' });
   await user.click(screen.getByRole('link', { name: 'Create an account' }));
   expect(screen.getByRole('dialog', { name: 'Create your account' })).toBe(
-    welcome
+    login
   );
   await user.click(screen.getByRole('link', { name: 'Log in' }));
-  expect(screen.getByRole('dialog', { name: 'Log in' })).toBe(welcome);
-  fireEvent(welcome, new Event('cancel', { cancelable: true }));
-  expect(
-    screen.getByRole('button', { name: 'Add task', exact: true })
-  ).toHaveFocus();
+  expect(screen.getByRole('dialog', { name: 'Log in' })).toBe(login);
 });
 
-it('retains dismissal through route changes in the same app session when browser storage is unavailable', async () => {
+it('does not reintroduce the welcome prompt when storage is unavailable or routes change', async () => {
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
     throw new Error('Blocked');
   });
@@ -82,26 +56,25 @@ it('retains dismissal through route changes in the same app session when browser
     throw new Error('Blocked');
   });
   render(<App />);
-  const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'Continue as guest' }));
-  for (const path of ['/forgot-password', '/']) {
+  for (const path of ['/forgot-password', '/', '/try']) {
     await act(async () => {
       window.history.pushState({}, '', path);
       window.dispatchEvent(new PopStateEvent('popstate'));
     });
   }
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: 'Log in', exact: true }));
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Log in' }));
   expect(screen.getByRole('dialog', { name: 'Log in' })).toBeInTheDocument();
 });
 
 it.each([
+  '/',
   '/auth/callback',
   '/reset-password',
   '/forgot-password',
   '/signin',
   '/signup',
-])('skips the welcome screen on %s', (path) => {
+])('keeps %s free of an automatic account-choice dialog', (path) => {
   window.history.replaceState({}, '', path);
   render(<App />);
   expect(
@@ -110,7 +83,6 @@ it.each([
 });
 
 it('keeps board controls outside the header and preserves both themes', async () => {
-  localStorage.setItem(choiceKey, 'seen');
   render(<App />);
   const user = userEvent.setup();
   const header = screen.getByRole('banner');
@@ -121,15 +93,10 @@ it('keeps board controls outside the header and preserves both themes', async ()
     within(header).queryByRole('button', { name: 'Add task' })
   ).not.toBeInTheDocument();
   const boardControls = screen.getByRole('region', { name: 'Board' });
-  expect(
-    within(boardControls).getByRole('button', { name: 'Add task' })
-  ).toBeInTheDocument();
-  expect(
-    within(boardControls).getByRole('button', { name: 'Add column' })
-  ).toBeInTheDocument();
-  expect(
-    within(boardControls).getByRole('button', { name: 'Archive all' })
-  ).toBeInTheDocument();
+  for (const name of ['Add task', 'Add column', 'Archive all'])
+    expect(
+      within(boardControls).getByRole('button', { name })
+    ).toBeInTheDocument();
   expect(within(boardControls).getByRole('status')).toHaveTextContent(
     'Saved on this device'
   );

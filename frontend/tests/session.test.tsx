@@ -33,7 +33,7 @@ beforeEach(() => {
   localStorage.clear();
   localStorage.setItem('kanban-account-choice-v1', 'seen');
   sessionStorage.clear();
-  window.history.replaceState({}, '', '/');
+  window.history.replaceState({}, '', '/try');
   fixture.session = null;
   fixture.auth.getSession.mockImplementation(async () => ({
     data: { session: fixture.session },
@@ -50,7 +50,7 @@ beforeEach(() => {
   });
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
 });
-it('finishes session checking before offering an account choice over the guest board', async () => {
+it('finishes session checking before opening the explicitly requested guest board', async () => {
   localStorage.removeItem('kanban-account-choice-v1');
   let finish!: (value: { data: { session: null }; error: null }) => void;
   fixture.auth.getSession.mockImplementationOnce(
@@ -66,12 +66,9 @@ it('finishes session checking before offering an account choice over the guest b
   ).not.toBeInTheDocument();
   await act(async () => finish({ data: { session: null }, error: null }));
   expect(
-    await screen.findByRole('dialog', { name: 'Welcome to jlord.dev' })
+    await screen.findByRole('button', { name: 'Add task' })
   ).toBeInTheDocument();
-  await userEvent
-    .setup()
-    .click(screen.getByRole('button', { name: 'Continue as guest' }));
-  expect(screen.getByRole('button', { name: 'Add task' })).toHaveFocus();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 it.each([undefined, '', '   '])(
   'opens the guest board without API requests when the stored session token is %s',
@@ -222,9 +219,15 @@ it('loads accessible workspaces, ignores old-account responses, and clears cloud
     .setup()
     .click(screen.getByRole('button', { name: 'Sign out' }));
   expect(
-    await screen.findByRole('button', { name: 'Log in' })
+    await screen.findByRole('heading', {
+      name: /I build full-stack applications/,
+    })
   ).toBeInTheDocument();
+  expect(window.location.pathname).toBe('/');
   expect(screen.queryByText('B private task')).not.toBeInTheDocument();
+  await userEvent
+    .setup()
+    .click(screen.getByRole('link', { name: 'Explore Kanban Desk' }));
   expect(screen.getByText('Original guest work')).toBeInTheDocument();
 });
 it('offers retry when the authenticated backend is unavailable', async () => {
@@ -309,7 +312,7 @@ it('keeps a task visible when archiving fails', async () => {
   ).toBeInTheDocument();
 });
 
-it('returns to the guest board when the backend rejects an expired token', async () => {
+it('returns to the homepage with a session error when the backend rejects an expired token', async () => {
   localStorage.removeItem('kanban-account-choice-v1');
   fixture.session = session('a');
   vi.stubGlobal(
@@ -318,15 +321,15 @@ it('returns to the guest board when the backend rejects an expired token', async
   );
   render(<App />);
   expect(
-    await screen.findByRole('button', { name: 'Log in' })
+    await screen.findByRole('link', { name: 'Log in' })
   ).toBeInTheDocument();
   expect(screen.getByRole('alert')).toHaveTextContent('session expired');
   expect(
     screen.queryByRole('dialog', { name: 'Welcome to jlord.dev' })
   ).not.toBeInTheDocument();
   expect(
-    screen.getAllByRole('button', { name: 'Add task' })[0]
-  ).toBeInTheDocument();
+    screen.queryByRole('button', { name: 'Add task' })
+  ).not.toBeInTheDocument();
 });
 
 it('preserves a valid recovery flow across a refresh in the same tab', async () => {
@@ -338,6 +341,18 @@ it('preserves a valid recovery flow across a refresh in the same tab', async () 
   expect(
     screen.queryByRole('button', { name: 'Add task' })
   ).not.toBeInTheDocument();
+});
+
+it('gives recovery precedence over the public homepage without workspace reads', async () => {
+  fixture.session = session('a');
+  sessionStorage.setItem('kanban-recovery-user', 'a');
+  window.history.replaceState({}, '', '/');
+  const fetcher = vi.fn();
+  vi.stubGlobal('fetch', fetcher);
+  render(<App />);
+  expect(await screen.findByLabelText('New password')).toBeInTheDocument();
+  expect(window.location.pathname).toBe('/reset-password');
+  expect(fetcher).not.toHaveBeenCalled();
 });
 
 it('keeps guest-to-cloud copying explicit after the first-visit login choice', async () => {
@@ -379,10 +394,7 @@ it('keeps guest-to-cloud copying explicit after the first-visit login choice', a
   vi.stubGlobal('fetch', fetcher);
   render(<App />);
   const user = userEvent.setup();
-  const welcome = await screen.findByRole('dialog', {
-    name: 'Welcome to jlord.dev',
-  });
-  await user.click(within(welcome).getByRole('button', { name: 'Log in' }));
+  await user.click(await screen.findByRole('button', { name: 'Log in' }));
   expect(screen.getByRole('dialog', { name: 'Log in' })).toBeInTheDocument();
   await act(async () => {
     fixture.session = session('a');

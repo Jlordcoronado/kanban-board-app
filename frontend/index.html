@@ -4,15 +4,24 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/kanban.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kanban Desk</title>
+    <title>Jaylord Coronado | Full-Stack Software Engineer</title>
+    <meta
+      name="description"
+      content="I build full-stack applications, integrate AI, and automate business workflows. Explore my work or contact me about a project or developer role."
+    />
     <script>
       (function () {
-        var stored = localStorage.getItem('kanban-theme');
-        var dark =
-          stored === 'dark' ||
-          (stored !== 'light' &&
-            window.matchMedia('(prefers-color-scheme: dark)').matches);
-        if (dark) document.documentElement.classList.add('dark');
+        try {
+          var stored = localStorage.getItem('kanban-theme');
+          var dark =
+            stored === 'dark' ||
+            (stored !== 'light' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (_) {
+          if (window.matchMedia('(prefers-color-scheme: dark)').matches)
+            document.documentElement.classList.add('dark');
+        }
       })();
     </script>
   </head>

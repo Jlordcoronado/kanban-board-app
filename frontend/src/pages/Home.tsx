@@ -22,6 +22,7 @@ import { CloudConflict } from '../component/CloudConflict';
 import { Dialog } from '../component/Dialog';
 import '../css/workspace-board.css';
 import type { Task } from '../types/task.ts';
+import { Link } from 'react-router-dom';
 import { KanbanColumn } from '../component/KanbanColumn.tsx';
 import { TaskModal } from '../component/TaskModal.tsx';
 import { AddColumnModal } from '../component/AddColumnModal.tsx';
@@ -294,7 +295,9 @@ function Home({
         <header className="mb-4 flex shrink-0 items-center justify-between gap-4 border-b border-[var(--border-subtle)] pb-4 sm:flex-row md:mb-5">
           <div className="text-left">
             <h1 className="m-0 text-[1.65rem] font-bold tracking-tight text-[var(--text)]">
-              jlord.dev
+              <Link to="/" aria-label="jlord.dev home">
+                jlord.dev
+              </Link>
             </h1>
           </div>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
