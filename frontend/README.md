@@ -113,3 +113,5 @@ Tests mock Supabase and HTTP transport; they do not create live accounts or send
 The website changes passed all 146 frontend tests, lint, and the production build. Sixteen isolated Chromium scenarios covered both themes at desktop, tablet, mobile, and landscape sizes, plus 200% text at an 800px viewport. Checks included horizontal overflow, actual font loading, text contrast, section/evidence links, direct section URLs, native preview controls, contact href, theme persistence, and guest entry without application-data requests. The isolated browser run used blank cloud configuration; it does not verify signed-in or hosted behavior. The existing production bundle-size advisory remains.
 
 This source includes authentication integration; it does not establish that the public demo has been deployed with it. For the portfolio overview, see the [project README](../README.md).
+
+Services acceptance was rechecked on 27 October 2026 under Node 22: all four offers and supporting links, keyboard section navigation, both themes, narrow layouts, preview/contact actions, the full 146-test suite, lint, and production build passed.
