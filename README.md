@@ -76,15 +76,15 @@ The repository includes separate setup documentation for developers who want to 
 
 ## Current status
 
-The source includes guest boards, optional cloud accounts, revision conflict review, task archiving, account recovery, and automated tests. The backend also implements team workspaces, role management, email invitations, archive restoration, and activity history. Frontend screens for those team and administrative features are still planned; emailed invitation links require a future acceptance screen.
+The source includes guest boards, optional cloud accounts, revision conflict review, task archiving, account recovery, and automated tests. Signed-in users have a dashboard with task counts, overdue work, upcoming deadlines, workspace filters, and a collapsible sidebar. Personal boards remain private; existing team boards are available to their members. Account settings includes identity, appearance, and password recovery. The backend also implements team creation, role management, email invitations, archive restoration, and activity history; frontend screens for those management features remain planned, including invitation acceptance.
 
 Tasks, columns, renames, and archive actions persist across refreshes. Cloud writes use server-checked revisions and transactional task/column updates; outdated changes require review before applying. Failed saves retain work with an explicit retry. Clearing browser data removes guest work. The old SQLite database is not copied into Supabase automatically.
 
-The Render link above points to the existing demo. Deployment of the latest account and database changes has not been verified. The checked-in Render configuration needs additional Supabase and origin settings before it can run this version. Remaining delivery work includes live authentication/email smoke tests, dependency review and refreshed screenshots. The screenshot above illustrates the board and does not show the new account flows.
+The Render link above points to the existing demo. Deployment of the latest account and database changes has not been verified. The checked-in Render configuration needs additional Supabase and origin settings before it can run this version. Remaining delivery work includes live authentication/email smoke tests, dependency review and refreshed screenshots. The screenshot above illustrates the board and does not show the dashboard or account flows.
 
 ## Verification
 
-Frontend tests cover guest persistence, local storage failure, cloud save retry and conflicts, editor draft recovery, account forms, session transitions, API failures, recovery, and stale responses after account changes. Backend tests cover request validation, invitation mail, workspace permissions, archiving, activity transactions, board migrations, revisions, and duplicate-free guest imports. Database tests run against an isolated PostgreSQL engine; live Supabase, Google, SMTP, and browser behavior require separate checks. See the component READMEs for commands and limitations.
+Frontend tests cover dashboard filters and calendar dates, workspace state sharing, navigation and account settings, guest persistence, local storage failure, cloud save retry and conflicts, editor draft recovery, account forms, session transitions, API failures, recovery, and stale responses after account changes. Backend tests cover request validation, invitation mail, workspace permissions, archiving, activity transactions, board migrations, revisions, and duplicate-free guest imports. Database tests run against an isolated PostgreSQL engine; live Supabase, Google, SMTP, and browser behavior require separate checks. See the component READMEs for commands and limitations.
 
 ## Why this matters to clients and teams
 

@@ -1,10 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import Home from './pages/Home.tsx';
-import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  RouterProvider,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
 import { AccountModal } from './component/AccountModal';
 import { AuthProvider } from './auth/AuthProvider';
 import { useAuth } from './auth/context';
-import { apiRequest, requestError } from './lib/api';
+import SignedInApp from './pages/SignedInApp';
 import { AuthLayout, type ThemeProps } from './component/AuthLayout';
 import {
   AuthCallback,
@@ -14,84 +27,6 @@ import {
   ResetPassword,
 } from './pages/AuthPages';
 
-interface Me {
-  user: { id: string; email?: string };
-  workspaces: {
-    id: string;
-    name: string;
-    kind: 'personal' | 'team';
-    role: 'owner' | 'admin' | 'member';
-  }[];
-}
-function PersonalBoard(theme: ThemeProps) {
-  const { session, signOut, error: authError } = useAuth();
-  const [me, setMe] = useState<Me | null>(null);
-  const [error, setError] = useState('');
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    void apiRequest<Me>('/api/me', { signal: controller.signal })
-      .then((value) => {
-        if (
-          !value.workspaces?.some((workspace) => workspace.kind === 'personal')
-        )
-          throw new Error(
-            'Your personal workspace is not available yet. Please try again.'
-          );
-        setMe(value);
-      })
-      .catch((cause) => {
-        if (!controller.signal.aborted && cause?.name !== 'AbortError')
-          setError(requestError(cause));
-      });
-    return () => controller.abort();
-  }, [attempt]);
-  if (error)
-    return (
-      <AuthLayout {...theme} title="Unable to open your workspace">
-        <p className="auth-error" role="alert">
-          {error}
-        </p>
-        <button
-          className="auth-primary"
-          onClick={() => {
-            setError('');
-            setAttempt((value) => value + 1);
-          }}
-        >
-          Try again
-        </button>
-        <button
-          className="auth-secondary"
-          onClick={() =>
-            void signOut().catch((cause) => setError(requestError(cause)))
-          }
-        >
-          Sign out
-        </button>
-      </AuthLayout>
-    );
-  if (!me)
-    return (
-      <AuthLayout {...theme} title="Opening your workspace">
-        <p role="status">Loading your personal board…</p>
-      </AuthLayout>
-    );
-  const workspace = me.workspaces.find(
-    (workspace) => workspace.kind === 'personal'
-  )!;
-  return (
-    <>
-      <div role={authError ? 'alert' : undefined}>{authError}</div>
-      <Home
-        {...theme}
-        workspaceId={workspace.id}
-        accountEmail={session?.user.email ?? ''}
-        onSignOut={signOut}
-      />
-    </>
-  );
-}
 interface AccountChoiceProps {
   welcomeSeen: boolean;
   rememberChoice: () => void;
@@ -146,6 +81,7 @@ function ProtectedBoard({
   ...theme
 }: ThemeProps & AccountChoiceProps) {
   const { loading, session, recovery, error } = useAuth();
+  const location = useLocation();
   useEffect(() => {
     if (!loading && (session || recovery || error)) rememberChoice();
   }, [loading, session, recovery, error, rememberChoice]);
@@ -156,8 +92,9 @@ function ProtectedBoard({
       </AuthLayout>
     );
   if (recovery) return <Navigate to="/reset-password" replace />;
+  if (!session && location.pathname !== '/') return <Navigate to="/" replace />;
   return session ? (
-    <PersonalBoard key={session.user.id} {...theme} />
+    <SignedInApp key={session.user.id} {...theme} />
   ) : (
     <GuestBoard
       {...theme}
@@ -192,7 +129,7 @@ function getInitialTheme(): 'light' | 'dark' {
     : 'light';
 }
 
-function App() {
+function Application() {
   const [welcomeSeen, setWelcomeSeen] = useState(hasAccountChoice);
   const rememberChoice = useCallback(() => {
     setWelcomeSeen(true);
@@ -219,51 +156,50 @@ function App() {
 
   const props = { theme, onToggleTheme: toggleTheme };
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <ProtectedBoard
-                {...props}
-                welcomeSeen={welcomeSeen}
-                rememberChoice={rememberChoice}
-              />
-            }
-          />
-          <Route
-            path="/signin"
-            element={<AuthForm key="signin" mode="signin" {...props} />}
-          />
-          <Route
-            path="/signup"
-            element={<AuthForm key="signup" mode="signup" {...props} />}
-          />
-          <Route path="/check-email" element={<CheckEmail {...props} />} />
-          <Route
-            path="/forgot-password"
-            element={<ForgotPassword {...props} />}
-          />
-          <Route
-            path="/reset-password"
-            element={<ResetPassword {...props} />}
-          />
-          <Route path="/auth/callback" element={<AuthCallback {...props} />} />
-          <Route
-            path="*"
-            element={
-              <AuthLayout {...props} title="Page not found">
-                <p className="auth-footer">
-                  <Link to="/">Go to your workspace</Link>
-                </p>
-              </AuthLayout>
-            }
-          />
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      <Routes>
+        <Route
+          path="/*"
+          element={
+            <ProtectedBoard
+              {...props}
+              welcomeSeen={welcomeSeen}
+              rememberChoice={rememberChoice}
+            />
+          }
+        />
+        <Route
+          path="/signin"
+          element={<AuthForm key="signin" mode="signin" {...props} />}
+        />
+        <Route
+          path="/signup"
+          element={<AuthForm key="signup" mode="signup" {...props} />}
+        />
+        <Route path="/check-email" element={<CheckEmail {...props} />} />
+        <Route
+          path="/forgot-password"
+          element={<ForgotPassword {...props} />}
+        />
+        <Route path="/reset-password" element={<ResetPassword {...props} />} />
+        <Route path="/auth/callback" element={<AuthCallback {...props} />} />
+      </Routes>
+    </AuthProvider>
   );
 }
 
-export default App;
+export default function App() {
+  const [router] = useState(() => {
+    const instance = createBrowserRouter([
+      { path: '*', element: <Application /> },
+    ]);
+    // Attach history listeners at commit, including Strict Mode's remount.
+    instance.dispose();
+    return instance;
+  });
+  useLayoutEffect(() => {
+    router.initialize();
+    return () => router.dispose();
+  }, [router]);
+  return <RouterProvider router={router} />;
+}

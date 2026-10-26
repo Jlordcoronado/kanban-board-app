@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useContext, useEffect, useRef, useState, type FormEvent } from 'react';
+import { UNSAFE_DataRouterContext } from 'react-router-dom';
+import { TaskNavigationGuard } from './TaskNavigationGuard';
 import type { Task, Column } from '../types/task.ts';
 import { apiRequest, requestError } from '../lib/api';
 import { Dialog } from './Dialog';
@@ -24,6 +26,7 @@ interface TaskModalProps {
   initialDraft?: Task;
   columns?: Column[];
   onSave: (changes: Changes) => Promise<void>;
+  onReviewConflict?: () => void;
   onClose: () => void;
 }
 
@@ -62,6 +65,7 @@ function TaskDialog({
   task,
   columns = [],
   onSave,
+  onReviewConflict,
   onClose,
   workspaceId,
   onSignIn,
@@ -71,6 +75,7 @@ function TaskDialog({
   initialDraft,
 }: TaskModalProps) {
   const isNew = !task.id;
+  const dataRouter = useContext(UNSAFE_DataRouterContext);
   const [editor, setEditor] = useState(() =>
     isNew || initialMode === 'edit'
       ? {
@@ -387,6 +392,15 @@ function TaskDialog({
             </fieldset>
           </div>
           <footer className="task-dialog-footer">
+            {onReviewConflict && (
+              <button
+                className="task-button task-secondary"
+                type="button"
+                onClick={onReviewConflict}
+              >
+                Review cloud conflict
+              </button>
+            )}
             {error && (
               <p className="task-error" role="alert">
                 {error}
@@ -459,6 +473,15 @@ function TaskDialog({
             </dl>
           </div>
           <footer className="task-dialog-footer task-actions">
+            {onReviewConflict && (
+              <button
+                className="task-button task-secondary"
+                type="button"
+                onClick={onReviewConflict}
+              >
+                Review cloud conflict
+              </button>
+            )}
             <button
               className="task-button task-secondary"
               type="button"
@@ -481,6 +504,17 @@ function TaskDialog({
             </button>
           </footer>
         </>
+      )}
+      {dataRouter && (
+        <TaskNavigationGuard
+          changed={hasChanges}
+          saving={isSaving}
+          onDiscard={() => {
+            resetHelp();
+            onEditorEnd?.();
+            onClose();
+          }}
+        />
       )}
       {discardTo && (
         <Dialog

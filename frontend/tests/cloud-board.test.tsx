@@ -344,7 +344,27 @@ it('retains the editor and explicit cloud-conflict choices after a stale save', 
     description: 'Other device',
   });
   expect(payload.revision).toBe(3);
-  expect(screen.getByLabelText('Title')).toHaveValue('My conflict draft');
+  expect(screen.queryByLabelText('Title')).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('dialog', { name: 'Task details' })
+  ).toHaveTextContent('Other device');
+  await user.click(
+    screen.getByRole('button', { name: 'Edit task', exact: true })
+  );
+  expect(screen.getByLabelText('Description')).toHaveValue('Other device');
+  request.mockImplementationOnce(async (_path, options) => ({
+    ...JSON.parse(String(options?.body)),
+    revision: 5,
+  }));
+  await user.selectOptions(screen.getByLabelText('Priority'), 'high');
+  await user.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(
+    JSON.parse(String(request.mock.calls.at(-1)?.[1]?.body)).tasks[0]
+  ).toMatchObject({
+    title: 'My conflict draft',
+    description: 'Other device',
+    priority: 'high',
+  });
 });
 
 it('retains failed archive confirmation and retries explicitly against the same cloud revision', async () => {

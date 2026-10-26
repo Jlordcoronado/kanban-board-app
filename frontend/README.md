@@ -1,6 +1,6 @@
 # Kanban Desk Frontend
 
-The React 19 and TypeScript client for Kanban Desk. It provides account access, a private personal board, task and column modals, drag-and-drop interactions, and light/dark themes. The app opens on a guest board without requiring authentication configuration or backend requests. Guest tasks, columns, and archives use versioned browser storage; signed-in boards load and save through the backend.
+The React 19 and TypeScript client for Kanban Desk. It provides account access, a signed-in task dashboard, private personal and existing team boards, task and column modals, drag-and-drop interactions, and light/dark themes. The app opens on a guest board without requiring authentication configuration or backend requests. Guest tasks, columns, and archives use versioned browser storage; signed-in boards load and save through the backend.
 
 The frontend is a public client application. Keep backend secrets and private configuration outside this directory.
 
@@ -45,13 +45,25 @@ Routes:
 - `/check-email`: confirmation or recovery instructions, email change, and resend with a cooldown.
 - `/forgot-password` and `/reset-password`: request a reset email and save a password from a recovery session.
 - `/auth/callback`: process the Supabase browser callback and explain failed/canceled links.
-- `/`: guest board, or the signed-in personal cloud board selected through `/api/me`. **Save to cloud** opens account forms in a native modal over the board. The dialog contains keyboard focus, supports Escape/Close, restores focus, and scrolls on mobile.
+- `/`: guest board, or a redirect to the signed-in dashboard. **Log in** opens account forms in a native modal over the guest board. The dialog contains keyboard focus, supports Escape/Close, restores focus, and scrolls on mobile.
 
-The Supabase browser SDK manages persistence, refresh, and callback processing. Its default browser flow is explicitly configured; no custom password storage or token storage is added. Authentication callback parameters are cleared after processing. Expired recovery links offer a new reset request. A successful reset opens the authenticated board.
+The Supabase browser SDK manages persistence, refresh, and callback processing. Its default browser flow is explicitly configured; no custom password storage or token storage is added. Authentication callback parameters are cleared after processing. Expired recovery links offer a new reset request. A successful reset opens the authenticated dashboard.
 
-All task and Gemini requests use one API client, which attaches the current access token and personal workspace ID. It checks errors before updating UI state. Sign-out and account changes cancel pending requests and discard stale responses. The board is keyed by user identity, so modals, tasks, and column state reset between accounts. Cloud request failures retain a pending proposal and never save account work into guest storage. Signing out restores the separate guest board.
+All task and Gemini requests use one API client, which attaches the current access token and the relevant workspace ID. It checks errors before updating UI state. Sign-out and account changes cancel pending requests and discard stale responses. The board is keyed by user identity, so modals, tasks, and column state reset between accounts. Cloud request failures retain a pending proposal and never save account work into guest storage. Signing out restores the separate guest board.
 
-The current frontend supports account access and personal boards. Team invitations, team management, archive browsing, and activity-history screens are later work. Task actions now say **Archive**, and **Archive all** moves active tasks into the backend archive. Owners/admins will restore them through the future archive UI.
+The frontend supports personal boards and boards for teams the account already belongs to. Personal tasks remain private; the dashboard shows a combined view without moving or sharing them. Team creation, invitations, role management, archive browsing, and activity-history screens remain later work. Task actions say **Archive**; **Archive all** is shown to owners/admins. Backend permissions remain authoritative.
+
+## Signed-in dashboard
+
+- `/dashboard`: combined task overview, with **All work**, **Personal**, and individual team filters. Source labels distinguish private tasks from each team's tasks.
+- `/boards/:workspaceId`: the selected personal or team Kanban board. Only memberships returned by `/api/me` are available in navigation.
+- `/account`: signed-in email, light/dark appearance, and a link to the existing password-reset flow.
+
+The collapsible sidebar opens these pages; mobile uses a keyboard-contained navigation drawer. Guests keep the local board and need to register or sign in for cloud saving and the dashboard.
+
+The four counts are clickable filters. **Open** excludes tasks whose status ID is `done`; **Done** counts tasks with that ID, even if the column is renamed. **Overdue** means an open task due before the current local calendar day, and **Due today** means an open task due today. Archived tasks are excluded. The default lists show overdue work and deadlines from today through the following six calendar days, sorted by due date, priority, and title. Tasks without dates remain available in the Open filter. Click a task to view details or edit it; create tasks inside boards.
+
+Cloud boards share session-scoped state between the dashboard and board pages. Loading is limited to three concurrent board reads. Unavailable workspaces are omitted from totals and lists with an explicit incomplete-totals notice and a retry. **Refresh** only reads clean boards; it never submits or replaces pending edits. Saving and explicit conflict resolution update the overview. Failed proposals survive page navigation within the app, but are cleared on sign-out/account changes; they are never written into guest storage. Another device's changes require Refresh; realtime updates and offline sync are outside this phase.
 
 ## Board persistence and limits
 
@@ -67,15 +79,13 @@ Task drag-and-drop and the movement dropdown change workflow stages; there is no
 
 ## Task editing
 
-Existing tasks open in a readable task-details view. Click the Title or Description area to edit that value; long descriptions wrap normally and the modal scrolls on smaller screens. Status, priority, started date, due date, and expected finish remain visible form controls.
-
-Selecting **Save changes** opens a confirmation before the frontend sends an update. **Cancel** returns to the unsaved edits, while **Disregard changes** closes without saving. Cancel, Close, Escape, and backdrop actions also protect unsaved changes.
+Existing tasks open in read-only **Task details**. **Edit task** opens labelled title, description, status, priority, and date fields. **Save changes** validates and saves immediately, then returns to the latest details. Failures retain edits for retry. Cancel returns to details; closing or cancelling a changed draft asks whether to keep editing or discard changes. New tasks open directly in the form and close after successful creation.
 
 ## Gemini suggestions
 
-The task editor always shows a basic title-based description placeholder. Guests see **Sign in to use Gemini**. Completing authentication does not request a rewrite. Signed-in users selecting **Rewrite with Gemini** send the current title to the backend, which can replace that placeholder with an AI-generated suggestion. **Apply** copies the current suggestion into the Description field; it does not save the task.
+Expand **Help write description** below Description in create/edit mode. Expansion sends no request. Guests must sign in, and signed-in users must explicitly choose **Generate with Gemini**. The editor displays a preview; **Apply suggestion** replaces only the draft description. Saving the task remains explicit. Failed generation preserves the draft, and responses from a closed editor are ignored.
 
-For deployed environments, set `VITE_API_URL` to the public backend URL and rebuild the frontend. Configure `GEMINI_API_KEY` only on the backend service; the current Render service configuration does not enable Gemini automatically. If the backend is unavailable, rate-limited, or missing its Gemini configuration, the editor shows a retry-later message and keeps the local placeholder. The AI suggestion remains a user-reviewed draft until it is applied and saved.
+For deployed environments, set `VITE_API_URL` to the public backend URL and rebuild the frontend. Configure `GEMINI_API_KEY` only on the backend service; the current Render service configuration does not enable Gemini automatically. Failed AI requests show an error without changing task text.
 
 ## Commands
 

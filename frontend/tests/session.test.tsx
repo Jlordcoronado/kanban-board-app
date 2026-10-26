@@ -90,7 +90,7 @@ it.each([undefined, '', '   '])(
   }
 );
 
-it('selects the personal workspace, ignores old-account responses, and clears the board on sign-out', async () => {
+it('loads accessible workspaces, ignores old-account responses, and clears cloud data on sign-out', async () => {
   localStorage.removeItem('kanban-account-choice-v1');
   const guest: GuestBoard = {
     version: 1,
@@ -120,7 +120,7 @@ it('selects the personal workspace, ignores old-account responses, and clears th
     guestFingerprint(guest)
   );
   fixture.session = session('a');
-  let finishOld!: (response: Response) => void;
+  const finishOld: ((response: Response) => void)[] = [];
   const requests: { path: string; workspace: string | null }[] = [];
   vi.stubGlobal(
     'fetch',
@@ -134,13 +134,29 @@ it('selects the personal workspace, ignores old-account responses, and clears th
         return Response.json({
           user: { id: account },
           workspaces: [
-            { id: 'unselected-team', kind: 'team', role: 'member' },
-            { id: `personal-${account}`, kind: 'personal', role: 'owner' },
+            {
+              id: 'shared-team',
+              name: 'Shared team',
+              kind: 'team',
+              role: 'member',
+            },
+            {
+              id: `personal-${account}`,
+              name: 'Personal',
+              kind: 'personal',
+              role: 'owner',
+            },
           ],
         });
       if (account === 'a')
         return new Promise<Response>((resolve) => {
-          finishOld = resolve;
+          finishOld.push(resolve);
+        });
+      if (headers.get('x-workspace-id') === 'shared-team')
+        return Response.json({
+          revision: 0,
+          columns: defaultColumns(),
+          tasks: [],
         });
       return Response.json({
         revision: 0,
@@ -161,7 +177,7 @@ it('selects the personal workspace, ignores old-account responses, and clears th
     })
   );
   render(<App />);
-  await waitFor(() => expect(finishOld).toBeDefined());
+  await waitFor(() => expect(finishOld.length).toBeGreaterThan(0));
   expect(requests.some((request) => request.workspace === 'personal-a')).toBe(
     true
   );
@@ -169,15 +185,35 @@ it('selects the personal workspace, ignores old-account responses, and clears th
     fixture.session = session('b');
     fixture.listener?.('SIGNED_IN', fixture.session);
   });
-  expect(await screen.findByText('B private task')).toBeInTheDocument();
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole('button', { name: 'Open: 1 tasks' })
+  );
+  expect(screen.getByText('B private task')).toBeInTheDocument();
   expect(
     screen.queryByRole('dialog', { name: 'Welcome to jlord.dev' })
   ).not.toBeInTheDocument();
-  await act(async () =>
-    finishOld(
-      Response.json([{ id: 'old', title: 'A private task', status: 'todo' }])
-    )
-  );
+  await act(async () => {
+    for (const finish of finishOld)
+      finish(
+        Response.json({
+          revision: 0,
+          columns: defaultColumns(),
+          tasks: [
+            {
+              id: 'old',
+              title: 'A private task',
+              description: '',
+              status: 'todo',
+              priority: 'medium',
+              startedAt: null,
+              dueDate: null,
+              expectedFinishAt: null,
+            },
+          ],
+        })
+      );
+  });
   expect(screen.queryByText('A private task')).not.toBeInTheDocument();
   expect(requests.some((request) => request.workspace === 'personal-b')).toBe(
     true
@@ -219,7 +255,14 @@ it('keeps a task visible when archiving fails', async () => {
       if (String(input).endsWith('/api/me'))
         return Response.json({
           user: { id: 'b' },
-          workspaces: [{ id: 'personal-b', kind: 'personal', role: 'owner' }],
+          workspaces: [
+            {
+              id: 'personal-b',
+              name: 'Personal',
+              kind: 'personal',
+              role: 'owner',
+            },
+          ],
         });
       if (init?.method === 'PUT')
         return Response.json(
@@ -245,8 +288,9 @@ it('keeps a task visible when archiving fails', async () => {
     })
   );
   render(<App />);
-  expect(await screen.findByText('Keep this task')).toBeInTheDocument();
   const user = userEvent.setup();
+  await user.click(await screen.findByRole('link', { name: 'Personal board' }));
+  expect(await screen.findByText('Keep this task')).toBeInTheDocument();
   await user.click(
     screen.getByRole('button', { name: 'Actions for Keep this task' })
   );
@@ -321,7 +365,14 @@ it('keeps guest-to-cloud copying explicit after the first-visit login choice', a
     String(input).endsWith('/api/me')
       ? Response.json({
           user: { id: 'a' },
-          workspaces: [{ id: 'personal-a', kind: 'personal', role: 'owner' }],
+          workspaces: [
+            {
+              id: 'personal-a',
+              name: 'Personal',
+              kind: 'personal',
+              role: 'owner',
+            },
+          ],
         })
       : Response.json({ revision: 0, columns: defaultColumns(), tasks: [] })
   );
@@ -337,6 +388,10 @@ it('keeps guest-to-cloud copying explicit after the first-visit login choice', a
     fixture.session = session('a');
     fixture.listener?.('SIGNED_IN', fixture.session);
   });
+  expect(
+    await screen.findByRole('heading', { name: 'Dashboard', exact: true })
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole('link', { name: 'Personal board' }));
   expect(
     await screen.findByRole('dialog', { name: 'Copy device work to cloud' })
   ).toBeInTheDocument();

@@ -18,7 +18,9 @@ import {
   hasGuestWork,
 } from '../lib/board';
 import { GuestImport } from '../component/GuestImport';
+import { CloudConflict } from '../component/CloudConflict';
 import { Dialog } from '../component/Dialog';
+import '../css/workspace-board.css';
 import type { Task } from '../types/task.ts';
 import { KanbanColumn } from '../component/KanbanColumn.tsx';
 import { TaskModal } from '../component/TaskModal.tsx';
@@ -28,6 +30,10 @@ import { ArchiveTaskDialog } from '../component/ArchiveTaskDialog';
 
 interface HomeProps {
   addTaskRef?: RefObject<HTMLButtonElement | null>;
+  embedded?: boolean;
+  boardTitle?: string;
+  workspaceRole?: 'owner' | 'admin' | 'member';
+  allowDeviceImport?: boolean;
   workspaceId?: string;
   onSignIn?: () => void;
   accountEmail: string;
@@ -38,6 +44,10 @@ interface HomeProps {
 
 function Home({
   addTaskRef,
+  embedded = false,
+  boardTitle = 'Board',
+  workspaceRole = 'owner',
+  allowDeviceImport = true,
   theme,
   onToggleTheme,
   workspaceId,
@@ -56,15 +66,21 @@ function Home({
   const tasks = activeTasks(board);
   const columns = board.columns;
   const [showImport, setShowImport] = useState(false);
-  const [conflictHidden, setConflictHidden] = useState(false);
-  useEffect(() => {
-    setConflictHidden(false);
-  }, [storage.latest]);
   const [importChecked, setImportChecked] = useState(false);
   const [draftError, setDraftError] = useState('');
+  const [conflictReview, setConflictReview] = useState(0);
   const [deviceDraft] = useState(readGuestDraft);
   const clearDraft = () => {
     if (!workspaceId) forgetGuestDraft();
+    else if (
+      storage.pending &&
+      failedTaskSave.current &&
+      (failedTaskSave.current === editingTask?.id ||
+        failedTaskSave.current === newTaskIdentity.current)
+    ) {
+      storage.discardPending();
+      failedTaskSave.current = null;
+    }
   };
   const rememberDraft = useCallback(
     (draft: Task) => {
@@ -80,7 +96,13 @@ function Home({
     [workspaceId]
   );
   useEffect(() => {
-    if (!workspaceId || loadingTasks || importChecked || !columns.length)
+    if (
+      !allowDeviceImport ||
+      !workspaceId ||
+      loadingTasks ||
+      importChecked ||
+      !columns.length
+    )
       return;
     const guest = readGuest().board;
     let dismissed = false;
@@ -93,7 +115,13 @@ function Home({
     }
     if (hasGuestWork(guest) && !dismissed) setShowImport(true);
     setImportChecked(true);
-  }, [workspaceId, loadingTasks, importChecked, columns.length]);
+  }, [
+    allowDeviceImport,
+    workspaceId,
+    loadingTasks,
+    importChecked,
+    columns.length,
+  ]);
   const [dragOverColumn, setDragOverColumn] = useState<Task['status'] | null>(
     null
   );
@@ -103,7 +131,14 @@ function Home({
   const [taskMode, setTaskMode] = useState<'details' | 'edit'>(
     !workspaceId && deviceDraft ? 'edit' : 'details'
   );
+  const resolvedEditingId = editingTask
+    ? (storage.resolvedTaskIds[editingTask.id] ?? editingTask.id)
+    : '';
+  const currentEditingTask = tasks.find(
+    (task) => task.id === resolvedEditingId
+  );
   const openTask = (task: Task, mode: 'details' | 'edit' = 'details') => {
+    if (workspaceId && (loadingTasks || !storage.available)) return;
     setTaskMode(mode);
     setEditingTask(task);
   };
@@ -248,71 +283,90 @@ function Home({
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-[1400px] px-4 py-4 sm:px-5 sm:py-5 md:flex md:h-screen md:min-h-0 md:flex-col md:px-8 md:py-6">
-      <header className="mb-4 flex shrink-0 items-center justify-between gap-4 border-b border-[var(--border-subtle)] pb-4 sm:flex-row md:mb-5">
-        <div className="text-left">
-          <h1 className="m-0 text-[1.65rem] font-bold tracking-tight text-[var(--text)]">
-            jlord.dev
-          </h1>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-          <button
-            type="button"
-            className="auth-theme"
-            title={accountEmail}
-            onClick={() =>
-              workspaceId
-                ? (!storage.pending ||
-                    window.confirm(
-                      'There are unsaved cloud changes. Sign out and discard them?'
-                    )) &&
-                  void onSignOut().catch((cause) =>
-                    setError(requestError(cause))
-                  )
-                : onSignIn?.()
-            }
-          >
-            {workspaceId ? 'Sign out' : 'Log in'}
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-0 text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-            onClick={onToggleTheme}
-            aria-label={
-              theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'
-            }
-          >
-            {theme === 'light' ? (
-              <svg
-                className="h-[1.1rem] w-[1.1rem]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-              </svg>
-            ) : (
-              <svg
-                className="h-[1.1rem] w-[1.1rem]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="12" cy="12" r="5" />
-                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-              </svg>
-            )}
-          </button>
-        </div>
-      </header>
+    <div
+      className={
+        embedded
+          ? 'workspace-board'
+          : 'mx-auto min-h-screen max-w-[1400px] px-4 py-4 sm:px-5 sm:py-5 md:flex md:h-screen md:min-h-0 md:flex-col md:px-8 md:py-6'
+      }
+    >
+      {!embedded && (
+        <header className="mb-4 flex shrink-0 items-center justify-between gap-4 border-b border-[var(--border-subtle)] pb-4 sm:flex-row md:mb-5">
+          <div className="text-left">
+            <h1 className="m-0 text-[1.65rem] font-bold tracking-tight text-[var(--text)]">
+              jlord.dev
+            </h1>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              className="auth-theme"
+              title={accountEmail}
+              onClick={() =>
+                workspaceId
+                  ? (!storage.pending ||
+                      window.confirm(
+                        'There are unsaved cloud changes. Sign out and discard them?'
+                      )) &&
+                    void onSignOut().catch((cause) =>
+                      setError(requestError(cause))
+                    )
+                  : onSignIn?.()
+              }
+            >
+              {workspaceId ? 'Sign out' : 'Log in'}
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-0 text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+              onClick={onToggleTheme}
+              aria-label={
+                theme === 'light'
+                  ? 'Switch to dark mode'
+                  : 'Switch to light mode'
+              }
+            >
+              {theme === 'light' ? (
+                <svg
+                  className="h-[1.1rem] w-[1.1rem]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              ) : (
+                <svg
+                  className="h-[1.1rem] w-[1.1rem]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="5" />
+                  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </header>
+      )}
 
       <section aria-labelledby="board-title" className="shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <h2 id="board-title" className="text-lg font-semibold">
-            Board
-          </h2>
+          {embedded ? (
+            <h1 id="board-title" className="workspace-board-title">
+              {boardTitle}
+            </h1>
+          ) : (
+            <h2 id="board-title" className="text-lg font-semibold">
+              {boardTitle}
+            </h2>
+          )}
+          {embedded && workspaceRole !== 'owner' && (
+            <span className="workspace-role">{workspaceRole}</span>
+          )}
           <p className="text-sm text-[var(--text-muted)]">
             {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} across{' '}
             {columns.length} columns ·{' '}
@@ -363,14 +417,16 @@ function Home({
           >
             Add column
           </button>
-          <button
-            type="button"
-            className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent bg-transparent px-3 text-xs font-semibold text-[var(--danger)] transition-colors hover:bg-[var(--danger-bg)]"
-            onClick={() => setIsConfirmDeleteAllOpen(true)}
-            disabled={archivingAll || loadingTasks}
-          >
-            Archive all
-          </button>
+          {workspaceRole !== 'member' && (
+            <button
+              type="button"
+              className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent bg-transparent px-3 text-xs font-semibold text-[var(--danger)] transition-colors hover:bg-[var(--danger-bg)]"
+              onClick={() => setIsConfirmDeleteAllOpen(true)}
+              disabled={archivingAll || loadingTasks}
+            >
+              Archive all
+            </button>
+          )}
         </div>
       </section>
 
@@ -397,7 +453,7 @@ function Home({
           </button>
         </div>
       )}
-      {workspaceId && (
+      {workspaceId && allowDeviceImport && (
         <div className="board-notice">
           <button
             className="auth-theme"
@@ -409,6 +465,9 @@ function Home({
           {deviceDraft && (
             <button
               className="auth-theme"
+              disabled={
+                loadingTasks || !columns.length || Boolean(storage.pending)
+              }
               onClick={() =>
                 openTask(
                   {
@@ -427,43 +486,16 @@ function Home({
           )}
         </div>
       )}
-      {storage.latest && conflictHidden && (
-        <button className="auth-theme" onClick={() => setConflictHidden(false)}>
-          Review cloud conflict
-        </button>
-      )}
-      {storage.latest && storage.pending && !conflictHidden && (
-        <Dialog
-          title="Cloud save conflict"
-          onClose={() => setConflictHidden(true)}
-        >
-          <h2>Your cloud board changed</h2>
-          {error && <p role="alert">{error}</p>}
-          <p>
-            Review the latest cloud values and your proposed changes. Applying
-            your draft keeps unrelated cloud changes.
-          </p>
-          <div className="conflict-values">
-            <div>
-              <h3>Latest cloud value</h3>
-              <BoardValues board={storage.latest} />
-            </div>
-            <div>
-              <h3>Your proposed change</h3>
-              <BoardValues board={storage.pending} />
-            </div>
-          </div>
-          <button className="auth-secondary" onClick={storage.acceptLatest}>
-            Keep cloud value
-          </button>
-          <button
-            className="auth-primary"
-            onClick={() => attempt(storage.applyDraft())}
-          >
-            Apply draft against latest revision
-          </button>
-        </Dialog>
-      )}
+      <CloudConflict
+        key={conflictReview}
+        hideReviewTrigger={Boolean(editingTask || newTaskStatus !== null)}
+        storage={storage}
+        onResolved={() => {
+          failedTaskSave.current = null;
+          setTaskMode('details');
+          setNewTaskStatus(null);
+        }}
+      />
       {showImport && workspaceId && (
         <GuestImport
           workspaceId={workspaceId}
@@ -477,7 +509,13 @@ function Home({
           Loading tasks…
         </p>
       )}
-      <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-5 sm:px-5 md:-mx-8 md:flex md:min-h-0 md:flex-1 md:px-8">
+      <div
+        className={
+          embedded
+            ? 'workspace-board-columns'
+            : '-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-5 sm:px-5 md:-mx-8 md:flex md:min-h-0 md:flex-1 md:px-8'
+        }
+      >
         <div className="flex min-w-max items-start gap-4 md:flex-1 md:items-stretch md:gap-5">
           {columns.map((col) => (
             <KanbanColumn
@@ -547,11 +585,16 @@ function Home({
         />
       )}
 
-      {newTaskStatus !== null && (
+      {newTaskStatus !== null && (!workspaceId || columns.length > 0) && (
         <TaskModal
           workspaceId={workspaceId}
           onSignIn={onSignIn}
           onDraft={rememberDraft}
+          onReviewConflict={
+            storage.latest && storage.pending
+              ? () => setConflictReview((value) => value + 1)
+              : undefined
+          }
           task={{
             id: '',
             title: '',
@@ -601,54 +644,50 @@ function Home({
         />
       )}
 
-      {editingTask && (
-        <TaskModal
-          workspaceId={workspaceId}
-          onSignIn={onSignIn}
-          onDraft={rememberDraft}
-          onEditorEnd={clearDraft}
-          key={editingTask.id || 'draft'}
-          initialMode={taskMode}
-          initialDraft={editingTask}
-          task={tasks.find((task) => task.id === editingTask.id) ?? editingTask}
-          columns={columns}
-          onSave={(changes) =>
-            editingTask.id
-              ? updateTask(editingTask.id, changes)
-              : createTask(changes)
-          }
-          onClose={() => {
-            clearDraft();
-            setEditingTask(null);
-          }}
-        />
-      )}
+      {editingTask &&
+        (!workspaceId || columns.length > 0) &&
+        (!workspaceId || !editingTask.id || currentEditingTask) && (
+          <TaskModal
+            workspaceId={workspaceId}
+            onSignIn={onSignIn}
+            onDraft={rememberDraft}
+            onEditorEnd={clearDraft}
+            key={`${resolvedEditingId || 'draft'}:${storage.resolution}`}
+            initialMode={taskMode}
+            initialDraft={editingTask}
+            task={currentEditingTask ?? editingTask}
+            onReviewConflict={
+              storage.latest && storage.pending
+                ? () => setConflictReview((value) => value + 1)
+                : undefined
+            }
+            columns={columns}
+            onSave={(changes) =>
+              editingTask.id
+                ? updateTask(resolvedEditingId, changes)
+                : createTask(changes)
+            }
+            onClose={() => {
+              clearDraft();
+              setEditingTask(null);
+            }}
+          />
+        )}
+      {workspaceId &&
+        editingTask?.id &&
+        columns.length > 0 &&
+        storage.available &&
+        !currentEditingTask && (
+          <Dialog title="Task unavailable" onClose={() => setEditingTask(null)}>
+            <h2>Task unavailable</h2>
+            <p>
+              This task is no longer available. Your board shows the latest
+              saved work.
+            </p>
+          </Dialog>
+        )}
     </div>
   );
 }
 
 export default Home;
-
-function BoardValues({ board }: { board: Board }) {
-  return (
-    <div className="conflict-board">
-      <p>Columns: {board.columns.map((c) => c.title).join(' → ')}</p>
-      {board.tasks.length === 0 && <p>No active tasks</p>}
-      {board.tasks.map((task) => (
-        <article key={task.id}>
-          <strong>{task.title}</strong>
-          <p>
-            {board.columns.find((c) => c.id === task.status)?.title} ·{' '}
-            {task.priority} priority
-          </p>
-          <p>{task.description || 'No description'}</p>
-          <p>
-            Started: {task.startedAt?.slice(0, 10) || '—'} · Due:{' '}
-            {task.dueDate?.slice(0, 10) || '—'} · Expected finish:{' '}
-            {task.expectedFinishAt?.slice(0, 10) || '—'}
-          </p>
-        </article>
-      ))}
-    </div>
-  );
-}

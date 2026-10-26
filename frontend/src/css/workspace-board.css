@@ -1,0 +1,46 @@
+.workspace-board {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100dvh;
+  padding: 32px;
+}
+.workspace-board-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.workspace-role {
+  color: var(--text-muted);
+  font-size: 14px;
+  text-transform: capitalize;
+}
+.workspace-board-columns {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+  margin-top: 12px;
+  padding-bottom: 12px;
+}
+.workspace-unavailable {
+  padding: 32px;
+}
+@media (min-width: 761px) {
+  .workspace-board {
+    height: 100dvh;
+  }
+}
+@media (max-width: 760px) {
+  .workspace-board {
+    padding: 20px 16px;
+    min-height: calc(100dvh - 64px);
+  }
+  .workspace-board-columns {
+    min-height: 480px;
+  }
+}
