@@ -22,7 +22,7 @@ it('renders approved public copy and working contact, profile and app links with
   const fetcher = vi.fn();
   vi.stubGlobal('fetch', fetcher);
   render(<App />);
-  expect(screen.getByText('Jaylord Coronado')).toBeInTheDocument();
+  expect(screen.getAllByText('Jaylord Coronado')).toHaveLength(2);
   expect(screen.getByText('Full-Stack Software Engineer')).toBeInTheDocument();
   expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
     'I build full-stack applications, integrate AI, and automate business workflows.'
@@ -32,18 +32,20 @@ it('renders approved public copy and working contact, profile and app links with
       /supported by three years of professional software development experience/
     )
   ).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Contact me' })).toHaveAttribute(
+  expect(
+    screen.getAllByRole('link', { name: 'Contact me' })[0]
+  ).toHaveAttribute(
     'href',
     'mailto:projlordcoronado@gmail.com?subject=Project%20or%20role%20inquiry'
   );
   for (const name of ['Kanban Desk', 'Explore Kanban Desk'])
     for (const link of screen.getAllByRole('link', { name }))
       expect(link).toHaveAttribute('href', '/try');
-  expect(screen.getByRole('link', { name: 'LinkedIn' })).toHaveAttribute(
+  expect(screen.getAllByRole('link', { name: 'LinkedIn' })[0]).toHaveAttribute(
     'href',
     'https://www.linkedin.com/in/jaylord-coronado/'
   );
-  expect(screen.getByRole('link', { name: 'GitHub' })).toHaveAttribute(
+  expect(screen.getAllByRole('link', { name: 'GitHub' })[0]).toHaveAttribute(
     'href',
     'https://github.com/Jlordcoronado'
   );
@@ -83,7 +85,7 @@ it('enlarges the labeled real dashboard preview, handles Escape, and restores fo
   expect(trigger).toHaveFocus();
 });
 
-it.each(['Services', 'About', 'Projects'])(
+it.each(['Services', 'About', 'Projects', 'Contact'])(
   'moves focus to %s through its navigation link without loading application data',
   async (section) => {
     const fetcher = vi.fn();
@@ -125,9 +127,11 @@ it('switches and persists theme and shows a useful preview failure state', async
       screen.getByRole('figure', { name: 'Hero dashboard preview' })
     ).getByRole('img')
   );
-  expect(screen.getByRole('status')).toHaveTextContent(
-    'preview could not load'
-  );
+  expect(
+    within(
+      screen.getByRole('figure', { name: 'Hero dashboard preview' })
+    ).getByRole('status')
+  ).toHaveTextContent('preview could not load');
   expect(
     screen.getByRole('button', {
       name: 'View hero dashboard preview full size',
@@ -219,4 +223,62 @@ it('presents one independent case study with lazy preview, source, implementatio
       screen.getByRole('figure', { name: 'Hero dashboard preview' })
     ).getByRole('button')
   ).toBeEnabled();
+});
+
+it.each([true, false])(
+  'reports clipboard success=%s and keeps the address available for manual copying',
+  async (success) => {
+    const user = userEvent.setup();
+    const write = vi.spyOn(navigator.clipboard, 'writeText');
+    if (success) write.mockResolvedValue();
+    else write.mockRejectedValue(new Error('Clipboard unavailable'));
+    render(<App />);
+    const contact = screen.getByRole('region', {
+      name: 'Contact',
+      exact: true,
+    });
+    expect(
+      within(contact).getByText('projlordcoronado@gmail.com')
+    ).toBeInTheDocument();
+    expect(
+      within(contact).getByRole('link', { name: 'Contact me' })
+    ).toHaveAttribute(
+      'href',
+      'mailto:projlordcoronado@gmail.com?subject=Project%20or%20role%20inquiry'
+    );
+    await user.click(
+      within(contact).getByRole('button', { name: 'Copy email' })
+    );
+    expect(write).toHaveBeenCalledWith('projlordcoronado@gmail.com');
+    expect(within(contact).getByRole('status')).toHaveTextContent(
+      success
+        ? 'Email address copied.'
+        : 'Copying failed. Select the email address above and copy it manually.'
+    );
+    expect(
+      within(contact).getByRole('button', { name: 'Copy email' })
+    ).toBeEnabled();
+  }
+);
+
+it('provides working footer section, profile and project links', async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  const footer = screen.getByRole('contentinfo');
+  for (const name of ['Services', 'About', 'Projects', 'Contact']) {
+    const link = within(footer).getByRole('link', { name });
+    expect(link).toHaveAttribute('href', `#${name.toLowerCase()}`);
+    await user.click(link);
+    expect(screen.getByRole('heading', { name, exact: true })).toHaveFocus();
+  }
+  expect(
+    within(footer).getByRole('link', { name: 'Kanban Desk' })
+  ).toHaveAttribute('href', '/try');
+  expect(
+    within(footer).getByRole('link', { name: 'LinkedIn' })
+  ).toHaveAttribute('href', 'https://www.linkedin.com/in/jaylord-coronado/');
+  expect(within(footer).getByRole('link', { name: 'GitHub' })).toHaveAttribute(
+    'href',
+    'https://github.com/Jlordcoronado'
+  );
 });

@@ -6,6 +6,11 @@ import { Dialog } from '../component/Dialog';
 import { dashboardPreview } from '../lib/projectPreview';
 import '../css/personal-website.css';
 
+const email = 'projlordcoronado@gmail.com';
+const profiles = [
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/in/jaylord-coronado/' },
+  { label: 'GitHub', href: 'https://github.com/Jlordcoronado' },
+];
 const contact =
   'mailto:projlordcoronado@gmail.com?subject=Project%20or%20role%20inquiry';
 
@@ -188,6 +193,23 @@ function ProjectPreview({
 
 export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
   const { error } = useAuth();
+  const [copyStatus, setCopyStatus] = useState('');
+  const [copying, setCopying] = useState(false);
+  const copyEmail = async () => {
+    setCopyStatus('');
+    setCopying(true);
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopyStatus('Email address copied.');
+    } catch {
+      setCopyStatus(
+        'Copying failed. Select the email address above and copy it manually.'
+      );
+    } finally {
+      setCopying(false);
+    }
+  };
+  const contactHeading = useRef<HTMLHeadingElement>(null);
   const servicesHeading = useRef<HTMLHeadingElement>(null);
   const aboutHeading = useRef<HTMLHeadingElement>(null);
   const projectsHeading = useRef<HTMLHeadingElement>(null);
@@ -226,7 +248,13 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
             Projects
           </a>
           <Link to="/try">Kanban Desk</Link>
-          <a className="website-header-contact" href={contact}>
+          <a
+            className="website-header-contact"
+            href="#contact"
+            onClick={() =>
+              contactHeading.current?.focus({ preventScroll: true })
+            }
+          >
             Contact
           </a>
           <button
@@ -287,10 +315,11 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
               </Link>
             </div>
             <nav className="website-socials" aria-label="Professional profiles">
-              <a href="https://www.linkedin.com/in/jaylord-coronado/">
-                LinkedIn
-              </a>
-              <a href="https://github.com/Jlordcoronado">GitHub</a>
+              {profiles.map((profile) => (
+                <a key={profile.label} href={profile.href}>
+                  {profile.label}
+                </a>
+              ))}
             </nav>
           </section>
           <ProjectPreview key={theme} theme={theme} />
@@ -454,7 +483,82 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
             </p>
           </article>
         </section>
+        <section className="website-contact" aria-labelledby="contact">
+          <h2 id="contact" ref={contactHeading} tabIndex={-1}>
+            Contact
+          </h2>
+          <div className="website-contact-content">
+            <div>
+              <h3>Let’s talk about your project.</h3>
+              <p>
+                Have a web application, backend issue, or data workflow you want
+                to discuss? Email me about the work or a developer role, or
+                contact me through LinkedIn.
+              </p>
+              <a className="website-button website-primary" href={contact}>
+                Contact me
+              </a>
+            </div>
+            <div className="website-contact-details">
+              <p className="website-email">{email}</p>
+              <button
+                className="website-button website-secondary"
+                type="button"
+                disabled={copying}
+                onClick={() => void copyEmail()}
+              >
+                {copying ? 'Copying…' : 'Copy email'}
+              </button>
+              <p
+                className="website-copy-status"
+                role="status"
+                aria-atomic="true"
+              >
+                {copyStatus}
+              </p>
+              <nav className="website-socials" aria-label="Contact profiles">
+                {profiles.map((profile) => (
+                  <a key={profile.label} href={profile.href}>
+                    {profile.label}
+                  </a>
+                ))}
+              </nav>
+            </div>
+          </div>
+        </section>
       </main>
+      <footer className="website-footer">
+        <div>
+          <p className="website-footer-name">Jaylord Coronado</p>
+          <p>Software engineer and developer of Kanban Desk.</p>
+        </div>
+        <nav className="website-footer-links" aria-label="Footer sections">
+          {[
+            { label: 'Services', ref: servicesHeading },
+            { label: 'About', ref: aboutHeading },
+            { label: 'Projects', ref: projectsHeading },
+            { label: 'Contact', ref: contactHeading },
+          ].map((section) => (
+            <a
+              key={section.label}
+              href={`#${section.label.toLowerCase()}`}
+              onClick={() =>
+                section.ref.current?.focus({ preventScroll: true })
+              }
+            >
+              {section.label}
+            </a>
+          ))}
+          <Link to="/try">Kanban Desk</Link>
+        </nav>
+        <nav className="website-footer-links" aria-label="Footer profiles">
+          {profiles.map((profile) => (
+            <a key={profile.label} href={profile.href}>
+              {profile.label}
+            </a>
+          ))}
+        </nav>
+      </footer>
     </div>
   );
 }

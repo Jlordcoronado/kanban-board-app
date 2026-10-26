@@ -544,9 +544,6 @@
   .website-theme {
     margin-left: auto;
   }
-  .website-navigation > .website-header-contact {
-    display: none;
-  }
 }
 
 .website-projects {
@@ -644,5 +641,109 @@
   }
   .website-case-introduction h3 {
     font-size: 30px;
+  }
+}
+
+.website-contact {
+  border-top: 1px solid var(--border);
+  padding-block: 56px 72px;
+}
+.website-contact > h2 {
+  margin: 0 0 36px;
+  font-size: 24px;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+}
+.website-contact-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 56px;
+}
+.website-contact h3 {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.3;
+  letter-spacing: -0.03em;
+}
+.website-contact-content > div > p {
+  max-width: 65ch;
+  margin: 20px 0;
+  color: var(--text-muted);
+  line-height: 1.8;
+}
+.website-contact-content .website-email {
+  margin-top: 0;
+  color: var(--text);
+  font-size: 20px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.website-contact button {
+  font-family: inherit;
+  cursor: pointer;
+}
+.website-contact button:disabled {
+  cursor: wait;
+}
+.website-contact-content .website-copy-status {
+  min-height: 1.8em;
+  margin: 12px 0 0;
+  font-size: 15px;
+}
+.website-contact .website-socials {
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.website-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: start;
+  gap: 24px 40px;
+  width: min(100% - 48px, 1200px);
+  margin-inline: auto;
+  border-top: 1px solid var(--border);
+  padding-block: 32px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+.website-footer p {
+  margin: 0;
+}
+.website-footer .website-footer-name {
+  margin-bottom: 8px;
+  color: var(--text);
+  font-weight: 500;
+}
+.website-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+.website-footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent);
+  text-underline-offset: 4px;
+}
+@media (max-width: 1000px) {
+  .website-contact {
+    padding-block: 40px 48px;
+  }
+  .website-contact-content {
+    gap: 32px;
+  }
+}
+@media (max-width: 600px) {
+  .website-contact-content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .website-contact h3 {
+    font-size: 28px;
+  }
+  .website-footer {
+    width: calc(100% - 32px);
   }
 }

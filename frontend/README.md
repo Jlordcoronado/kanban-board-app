@@ -10,9 +10,9 @@ The frontend is a public client application. Keep backend secrets and private co
 
 Public copy lives in the `services`, `introduction`, `skillGroups`, and `kanbanProject` constants in that component. Scoped layout and typography live in `src/css/personal-website.css`. Archivo 600 headings and IBM Plex Sans 400/500 body text are served from `public/fonts/`, with OFL licenses. Application screens retain Inter and the existing theme tokens.
 
-The inspected light/dark dashboard captures are in `public/images/`, with paths, dimensions, and alternative text in `src/lib/projectPreview.ts`. They contain example tasks. **View full size** opens the native preview dialog; Escape closes it and restores focus. Services and About links move focus to their headings. The homepage does not initiate workspace or board reads.
+The inspected light/dark dashboard captures are in `public/images/`, with paths, dimensions, and alternative text in `src/lib/projectPreview.ts`. They contain example tasks. **View full size** opens the native preview dialog; Escape closes it and restores focus. Section links move focus to their headings. The homepage does not initiate workspace or board reads.
 
-Projects follows About with one Kanban Desk case study, a lazy dashboard preview, source link, and `/try` app entry. It covers frontend/backend work, device/cloud separation, permissions, revision conflicts, and reviewable AI suggestions. Contact/Footer and `/kanban` remain the next website phases.
+Projects follows About with one Kanban Desk case study, a lazy dashboard preview, source link, and `/try` app entry. It covers frontend/backend work, device/cloud separation, permissions, revision conflicts, and reviewable AI suggestions. Contact follows Projects with the approved mailto action, selectable address, Copy email status/fallback, and profile links. The footer contains the public name and section/project/profile links. Header and footer links focus section headings; mobile navigation remains visible and wraps. The separate `/kanban` introduction is the next phase.
 
 ## Run locally
 
