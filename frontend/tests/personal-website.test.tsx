@@ -37,7 +37,8 @@ it('renders approved public copy and working contact, profile and app links with
     'mailto:projlordcoronado@gmail.com?subject=Project%20or%20role%20inquiry'
   );
   for (const name of ['Kanban Desk', 'Explore Kanban Desk'])
-    expect(screen.getByRole('link', { name })).toHaveAttribute('href', '/try');
+    for (const link of screen.getAllByRole('link', { name }))
+      expect(link).toHaveAttribute('href', '/try');
   expect(screen.getByRole('link', { name: 'LinkedIn' })).toHaveAttribute(
     'href',
     'https://www.linkedin.com/in/jaylord-coronado/'
@@ -73,6 +74,31 @@ it('enlarges the labeled real dashboard preview, handles Escape, and restores fo
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   expect(trigger).toHaveFocus();
 });
+
+it.each(['Services', 'About'])(
+  'moves focus to %s through its navigation link without loading application data',
+  async (section) => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    render(<App />);
+    const region = screen.getByRole('region', { name: section, exact: true });
+    const heading = within(region).getByRole('heading', {
+      name: section,
+      level: 2,
+    });
+    const link = within(
+      screen.getByRole('navigation', { name: 'Main navigation' })
+    ).getByRole('link', { name: section });
+    expect(link).toHaveAttribute('href', `#${section.toLowerCase()}`);
+    expect(heading).toHaveAttribute('id', section.toLowerCase());
+    await userEvent.setup().click(link);
+    expect(heading).toHaveFocus();
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('button', { name: 'Add task' })
+    ).not.toBeInTheDocument();
+  }
+);
 
 it('switches and persists theme and shows a useful preview failure state', async () => {
   render(<App />);
