@@ -1,0 +1,197 @@
+.kanban-product-intro {
+  max-width: 850px;
+  padding-block: 64px 56px;
+}
+.kanban-product-intro h1 {
+  margin: 0;
+  font-size: 48px;
+  line-height: 1.15;
+  letter-spacing: -0.045em;
+  text-wrap: pretty;
+}
+.kanban-product-intro > p {
+  max-width: 65ch;
+  margin: 24px 0 0;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1.8;
+}
+.kanban-product-intro .kanban-cloud-status {
+  font-size: 15px;
+}
+.kanban-section {
+  padding-block: 48px 64px;
+  border-top: 1px solid var(--border);
+}
+.kanban-section > h2 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+}
+.kanban-section-intro {
+  max-width: 76ch;
+  margin: 20px 0 28px;
+  color: var(--text-muted);
+  line-height: 1.8;
+}
+.kanban-screen-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 32px;
+}
+.kanban-screen-tabs button,
+.kanban-layout-options button {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 10px 16px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+  cursor: pointer;
+}
+.kanban-screen-tabs button[aria-selected='true'] {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.kanban-screen-tabs button:hover,
+.kanban-layout-options button:hover {
+  border-color: var(--accent);
+}
+.kanban-layout-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-block: 20px 24px;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+.kanban-layout-options > span {
+  margin-right: 8px;
+}
+.kanban-layout-options button[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.kanban-gallery-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 76ch;
+  font-size: 15px;
+}
+.kanban-gallery-preview figcaption {
+  gap: 16px 24px;
+}
+.kanban-gallery-preview .website-preview-actions {
+  align-self: start;
+}
+.kanban-gallery-preview.kanban-layout-mobile .website-preview-frame {
+  max-width: 406px;
+  margin-inline: auto;
+}
+.kanban-gallery-preview picture,
+.kanban-full-preview picture {
+  display: block;
+}
+.kanban-full-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.kanban-full-preview.kanban-layout-mobile picture {
+  max-width: 390px;
+  margin-inline: auto;
+}
+.kanban-gallery-preview .website-preview-error {
+  justify-items: start;
+}
+.kanban-comparison table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  line-height: 1.7;
+  text-align: left;
+}
+.kanban-comparison caption {
+  margin-bottom: 16px;
+  text-align: left;
+  color: var(--text-muted);
+}
+.kanban-comparison :where(th, td) {
+  width: 39%;
+  border-bottom: 1px solid var(--border);
+  padding: 20px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.kanban-comparison tr > :first-child {
+  width: 22%;
+  padding-left: 0;
+}
+.kanban-comparison th {
+  font-weight: 500;
+}
+.kanban-comparison thead {
+  background: var(--surface);
+}
+.kanban-comparison td {
+  color: var(--text-muted);
+}
+.kanban-faq {
+  margin-top: 28px;
+}
+.kanban-faq details {
+  border-bottom: 1px solid var(--border);
+}
+.kanban-faq summary {
+  padding-block: 20px;
+  min-height: 44px;
+  font-size: 18px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.kanban-faq p {
+  max-width: 76ch;
+  margin: 0 0 24px;
+  color: var(--text-muted);
+  line-height: 1.8;
+}
+.kanban-introduction :where([tabindex='0'], summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+.kanban-introduction .website-footer a {
+  color: var(--accent);
+  text-underline-offset: 4px;
+}
+@media (max-width: 600px) {
+  .kanban-product-intro {
+    padding-block: 40px;
+  }
+  .kanban-product-intro h1 {
+    font-size: 36px;
+  }
+  .kanban-section {
+    padding-block: 36px 48px;
+  }
+  .kanban-section > h2 {
+    font-size: 24px;
+  }
+  .kanban-comparison :where(th, td) {
+    padding: 12px 8px;
+  }
+  .kanban-gallery-preview.kanban-layout-auto .website-preview-frame {
+    max-width: 406px;
+    margin-inline: auto;
+  }
+  .kanban-full-preview.kanban-layout-auto picture {
+    max-width: 390px;
+    margin-inline: auto;
+  }
+}

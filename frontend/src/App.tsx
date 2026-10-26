@@ -15,6 +15,7 @@ import { useAuth } from './auth/context';
 import SignedInApp from './pages/SignedInApp';
 import { AccountWorkspaceSession } from './board/AccountWorkspaceSession';
 import PersonalWebsite from './pages/PersonalWebsite';
+import KanbanIntroduction from './pages/KanbanIntroduction';
 import { AuthLayout, type ThemeProps } from './component/AuthLayout';
 import {
   AuthCallback,
@@ -113,10 +114,26 @@ function ApplicationRoutes(theme: ThemeProps) {
     (path) => matchPath(path, pathname)
   );
   useEffect(() => {
+    const product = Boolean(matchPath('/kanban', pathname));
     document.title =
       pathname === '/'
         ? 'Jaylord Coronado | Full-Stack Software Engineer'
-        : 'Kanban Desk';
+        : product
+          ? 'Kanban Desk | Tasks, boards, and deadlines'
+          : 'Kanban Desk';
+    let description = document.head.querySelector<HTMLMetaElement>(
+      'meta[name="description"]'
+    );
+    if (!description) {
+      description = document.createElement('meta');
+      description.name = 'description';
+      document.head.append(description);
+    }
+    description.content = product
+      ? 'Explore Kanban Desk with example screens. Organize tasks, priorities, and deadlines in a guest board, with optional cloud accounts when configured.'
+      : pathname === '/'
+        ? 'I build full-stack applications, integrate AI, and automate business workflows. Explore my work or contact me about a project or developer role.'
+        : 'Kanban Desk task boards and account access.';
   }, [pathname]);
   if (
     recovery &&
@@ -127,6 +144,7 @@ function ApplicationRoutes(theme: ThemeProps) {
   const routes = (
     <Routes>
       <Route path="/" element={<PersonalWebsite {...theme} />} />
+      <Route path="/kanban" element={<KanbanIntroduction {...theme} />} />
       <Route path="/try" element={<AppEntry {...theme} guest />} />
       <Route
         path="/signin"

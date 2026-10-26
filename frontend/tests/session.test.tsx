@@ -228,6 +228,9 @@ it('loads accessible workspaces, ignores old-account responses, and clears cloud
   await userEvent
     .setup()
     .click(screen.getByRole('link', { name: 'Explore Kanban Desk' }));
+  await userEvent
+    .setup()
+    .click(screen.getAllByRole('link', { name: 'Try as guest' })[0]);
   expect(screen.getByText('Original guest work')).toBeInTheDocument();
 });
 it('offers retry when the authenticated backend is unavailable', async () => {
@@ -343,17 +346,20 @@ it('preserves a valid recovery flow across a refresh in the same tab', async () 
   ).not.toBeInTheDocument();
 });
 
-it('gives recovery precedence over the public homepage without workspace reads', async () => {
-  fixture.session = session('a');
-  sessionStorage.setItem('kanban-recovery-user', 'a');
-  window.history.replaceState({}, '', '/');
-  const fetcher = vi.fn();
-  vi.stubGlobal('fetch', fetcher);
-  render(<App />);
-  expect(await screen.findByLabelText('New password')).toBeInTheDocument();
-  expect(window.location.pathname).toBe('/reset-password');
-  expect(fetcher).not.toHaveBeenCalled();
-});
+it.each(['/', '/kanban'])(
+  'gives recovery precedence over public route %s without workspace reads',
+  async (route) => {
+    fixture.session = session('a');
+    sessionStorage.setItem('kanban-recovery-user', 'a');
+    window.history.replaceState({}, '', route);
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    render(<App />);
+    expect(await screen.findByLabelText('New password')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/reset-password');
+    expect(fetcher).not.toHaveBeenCalled();
+  }
+);
 
 it('keeps guest-to-cloud copying explicit after the first-visit login choice', async () => {
   localStorage.removeItem('kanban-account-choice-v1');

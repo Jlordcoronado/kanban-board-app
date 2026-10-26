@@ -164,25 +164,38 @@ it('opens a filtered team task, saves an edit, and immediately updates dashboard
   expect(boards[personal.id].tasks[0].status).toBe('todo');
 });
 
-it('opens the homepage for an authenticated visitor without loading any workspaces or boards', async () => {
-  window.history.replaceState({}, '', '/');
-  render(<App />);
-  await waitFor(() =>
+it.each(['/', '/kanban'])(
+  'opens public route %s for an authenticated visitor without loading workspaces or boards',
+  async (route) => {
+    window.history.replaceState({}, '', route);
+    render(<App />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', {
+          name:
+            route === '/'
+              ? /I build full-stack applications/
+              : 'Your tasks, from to do to done.',
+        })
+      ).toBeInTheDocument()
+    );
+    await waitFor(() => expect(fixture.auth.getSession).toHaveBeenCalled());
+    expect(requests).toHaveLength(0);
+    if (route === '/')
+      await userEvent
+        .setup()
+        .click(screen.getByRole('link', { name: 'Explore Kanban Desk' }));
+    expect(requests).toHaveLength(0);
+    await userEvent
+      .setup()
+      .click(screen.getAllByRole('link', { name: 'Open dashboard' })[0]);
     expect(
-      screen.getByRole('heading', { name: /I build full-stack applications/ })
-    ).toBeInTheDocument()
-  );
-  await waitFor(() => expect(fixture.auth.getSession).toHaveBeenCalled());
-  expect(requests).toHaveLength(0);
-  await userEvent
-    .setup()
-    .click(screen.getByRole('link', { name: 'Explore Kanban Desk' }));
-  expect(
-    await screen.findByRole('heading', { name: 'Dashboard', exact: true })
-  ).toBeInTheDocument();
-  expect(window.location.pathname).toBe('/dashboard');
-  expect(requests.filter(({ path }) => path === '/api/me')).toHaveLength(1);
-});
+      await screen.findByRole('heading', { name: 'Dashboard', exact: true })
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/dashboard');
+    expect(requests.filter(({ path }) => path === '/api/me')).toHaveLength(1);
+  }
+);
 
 it.each(['/dashboard/', '/DASHBOARD'])(
   'preserves the router matching behavior for %s',
@@ -222,6 +235,11 @@ it('keeps an unrelated pending board save and unload protection across public/ap
   expect(event.defaultPrevented).toBe(true);
   expect(requests.filter(({ method }) => method === 'GET')).toHaveLength(reads);
   await user.click(screen.getByRole('link', { name: 'Explore Kanban Desk' }));
+  expect(requests.filter(({ method }) => method === 'GET')).toHaveLength(reads);
+  const publicEvent = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(publicEvent);
+  expect(publicEvent.defaultPrevented).toBe(true);
+  await user.click(screen.getAllByRole('link', { name: 'Open dashboard' })[0]);
   expect(
     await screen.findByText('Unsaved changes in Personal.')
   ).toBeInTheDocument();

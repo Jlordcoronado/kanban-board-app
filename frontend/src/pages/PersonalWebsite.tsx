@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/context';
 import type { ThemeProps } from '../component/AuthLayout';
+import { PublicThemeToggle } from '../component/PublicThemeToggle';
 import { Dialog } from '../component/Dialog';
 import { dashboardPreview } from '../lib/projectPreview';
 import '../css/personal-website.css';
@@ -23,7 +24,7 @@ const services = [
       'I build web applications, including user interfaces, backend logic, databases, and API integrations.',
     work: 'Kanban Desk',
     evidence: 'An independent application with a web interface and backend.',
-    href: '/try',
+    href: '/kanban',
   },
   {
     id: 'automation',
@@ -41,7 +42,7 @@ const services = [
       'I connect AI APIs to application features and build the input, review, and save flows around the results.',
     work: 'AI in Kanban Desk',
     evidence: 'AI-assisted task descriptions, reviewed before saving.',
-    href: '/try',
+    href: '/kanban',
   },
   {
     id: 'maintenance',
@@ -165,10 +166,12 @@ function ProjectPreview({
           <button
             ref={trigger}
             type="button"
-            disabled={failed}
+            aria-disabled={failed}
             aria-haspopup="dialog"
             aria-label={`View ${label.toLowerCase()} full size`}
-            onClick={() => setEnlarged(true)}
+            onClick={() => {
+              if (!failed) setEnlarged(true);
+            }}
           >
             View full size
           </button>
@@ -247,7 +250,7 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
           >
             Projects
           </a>
-          <Link to="/try">Kanban Desk</Link>
+          <Link to="/kanban">Kanban Desk</Link>
           <a
             className="website-header-contact"
             href="#contact"
@@ -257,31 +260,7 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
           >
             Contact
           </a>
-          <button
-            className="website-theme"
-            type="button"
-            onClick={onToggleTheme}
-            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-          >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              {theme === 'light' ? (
-                <path d="M20.8 13.2A8.7 8.7 0 0 1 10.8 3a9 9 0 1 0 10 10.2Z" />
-              ) : (
-                <>
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-                </>
-              )}
-            </svg>
-          </button>
+          <PublicThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
         </nav>
       </header>
       <main id="website-main" className="website-main" tabIndex={-1}>
@@ -310,7 +289,7 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
               <a className="website-button website-primary" href={contact}>
                 Contact me
               </a>
-              <Link className="website-button website-secondary" to="/try">
+              <Link className="website-button website-secondary" to="/kanban">
                 Explore Kanban Desk
               </Link>
             </div>
@@ -439,8 +418,11 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
               <div>
                 <p>{kanbanProject.summary}</p>
                 <div className="website-actions">
-                  <Link className="website-button website-secondary" to="/try">
-                    Try Kanban Desk
+                  <Link
+                    className="website-button website-secondary"
+                    to="/kanban"
+                  >
+                    View Kanban Desk
                   </Link>
                   <a
                     className="website-button website-secondary"
@@ -549,7 +531,7 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
               {section.label}
             </a>
           ))}
-          <Link to="/try">Kanban Desk</Link>
+          <Link to="/kanban">Kanban Desk</Link>
         </nav>
         <nav className="website-footer-links" aria-label="Footer profiles">
           {profiles.map((profile) => (

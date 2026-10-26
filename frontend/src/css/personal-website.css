@@ -231,7 +231,7 @@
   font: inherit;
   cursor: pointer;
 }
-.website-preview-actions button:disabled {
+.website-preview-actions button[aria-disabled='true'] {
   color: var(--text-muted);
   text-decoration: none;
   cursor: default;

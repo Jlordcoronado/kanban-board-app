@@ -12,9 +12,9 @@ Dashboard capture with example tasks. A [dark-theme capture](./frontend/public/i
 
 ## Personal website
 
-The public homepage introduces Jaylord Coronado's work through a hero, a real dashboard preview, Services, and About. Four service entries cover full-stack applications, business automation, AI integration, and application maintenance, each with a supporting work example. About distinguishes professional enterprise work from Kanban Desk as an independent project and includes a shared skills inventory and an anonymous reconciliation example.
+The public homepage introduces Jaylord Coronado's work through the accepted hero, Services, About, a Kanban Desk case study, and Contact with a copyable email address. The footer links to the sections and professional profiles. Four service entries cover full-stack applications, business automation, AI integration, and application maintenance, each with a supporting work example. About distinguishes professional enterprise work from Kanban Desk as an independent project and includes a shared skills inventory and an anonymous reconciliation example.
 
-**Contact me** opens an email draft. **Explore Kanban Desk** opens `/try`; signed-in visitors continue to `/dashboard`. The homepage stays available to both guests and accounts. The website uses locally hosted Archivo and IBM Plex Sans; application screens retain their existing typography and both themes.
+**Contact me** opens an email draft. **Explore Kanban Desk** opens the public introduction at `/kanban`, with seven example screens and guest/account explanations. **Try as guest** opens `/try`; signed-in visitors can choose **Open dashboard**. The homepage stays available to both guests and accounts. The website uses locally hosted Archivo and IBM Plex Sans; application screens retain their existing typography and both themes.
 
 ## The problem it solves
 
@@ -22,7 +22,7 @@ When work is spread across notes, messages, and disconnected lists, it becomes d
 
 ## What users can do
 
-- Open the personal homepage at `/`, then choose **Explore Kanban Desk** to use a guest board at `/try`, saved in this browser. Optional accounts support email confirmation, email/password or Google sign-in, and account recovery.
+- Open the personal homepage at `/` or the product introduction at `/kanban`, then choose **Try as guest** for a board at `/try`, saved in this browser. Optional accounts support email confirmation, email/password or Google sign-in, and account recovery.
 - Work on a private cloud board when signed in; copy device work with a preview and keep the original guest board.
 - Organise work across up to seven persistent workflow columns.
 - Create, edit, move, and archive tasks without leaving the board.
@@ -34,7 +34,7 @@ When work is spread across notes, messages, and disconnected lists, it becomes d
 - Switch between light and dark themes.
 - Request an optional AI-generated description suggestion and decide whether to use it.
 
-Guest work stays separate from cloud work. Signing out returns to the homepage; **Explore Kanban Desk** reopens the browser's guest board. Imports never overwrite cloud tasks and later guest edits do not silently update prior copies. Gemini requires sign-in and an explicit rewrite request. Cloud changes from other devices load when the app opens or refreshes; live updates and offline synchronization are outside this version.
+Guest work stays separate from cloud work. Signing out returns to the homepage; **Try as guest** reopens the browser's guest board. Imports never overwrite cloud tasks and later guest edits do not silently update prior copies. Gemini requires sign-in and an explicit rewrite request. Cloud changes from other devices load when the app opens or refreshes; live updates and offline synchronization are outside this version.
 
 ## Product decisions
 
@@ -84,17 +84,17 @@ The repository includes separate setup documentation for developers who want to 
 
 ## Current status
 
-The source includes the personal homepage with Services, About, contact links, and a dashboard preview, guest boards, optional cloud accounts, revision conflict review, task archiving, account recovery, and automated tests. Signed-in users have a dashboard with task counts, overdue work, upcoming deadlines, workspace filters, and a collapsible sidebar. Personal boards remain private; existing team boards are available to their members. Account settings includes identity, appearance, and password recovery. The backend also implements team creation, role management, email invitations, archive restoration, and activity history; frontend screens for those management features remain planned, including invitation acceptance. The Projects section presents a Kanban Desk case study with source access, an example dashboard, and implementation/hosted-verification boundaries. Contact includes an email action, copyable address, and professional profiles; the footer links to every homepage section. The separate Kanban Desk introduction is the next website phase.
+The source includes the personal homepage with Services, About, contact links, and a dashboard preview, guest boards, optional cloud accounts, revision conflict review, task archiving, account recovery, and automated tests. Signed-in users have a dashboard with task counts, overdue work, upcoming deadlines, workspace filters, and a collapsible sidebar. Personal boards remain private; existing team boards are available to their members. Account settings includes identity, appearance, and password recovery. The backend also implements team creation, role management, email invitations, archive restoration, and activity history; frontend screens for those management features remain planned, including invitation acceptance. The Projects section presents a Kanban Desk case study with source access, an example dashboard, and implementation/hosted-verification boundaries. Contact includes an email action, copyable address, and professional profiles; the footer links to every homepage section. The public `/kanban` introduction includes a seven-screen gallery with 28 light/dark and desktop/mobile variants, guest/account comparison, and FAQs. It offers account actions only when cloud access is configured.
 
 Tasks, columns, renames, and archive actions persist across refreshes. Cloud writes use server-checked revisions and transactional task/column updates; outdated changes require review before applying. Failed saves retain work with an explicit retry. Clearing browser data removes guest work. The old SQLite database is not copied into Supabase automatically.
 
-The Render link above points to the existing demo. Deployment of the latest website, account, and database changes has not been verified. The checked-in Render configuration needs additional Supabase and origin settings before it can run this version. Remaining delivery work includes live authentication/email smoke tests, dependency review, and screenshots of additional application screens. The dashboard captures use example data and do not establish live account access.
+The Render link above points to the existing demo. Deployment of the latest website, account, and database changes has not been verified. The checked-in Render configuration needs additional Supabase and origin settings before it can run this version. Remaining delivery work includes cloud configuration and live authentication/email smoke tests. All 28 gallery variants are inspected examples from actual application components and do not establish live account access.
 
 ## Verification
 
 Frontend tests cover dashboard filters and calendar dates, workspace state sharing, navigation and account settings, guest persistence, local storage failure, cloud save retry and conflicts, editor draft recovery, account forms, session transitions, API failures, recovery, and stale responses after account changes. Backend tests cover request validation, invitation mail, workspace permissions, archiving, activity transactions, board migrations, revisions, and duplicate-free guest imports. Database tests run against an isolated PostgreSQL engine; live Supabase, Google, SMTP, and browser behavior require separate checks. See the component READMEs for commands and limitations.
 
-The website changes passed 146 frontend tests, lint, and a production build. Sixteen isolated Chromium scenarios covered both themes, narrow and landscape layouts, 200% text, section links and keyboard focus, preview enlargement, contact destinations, and text contrast. Live provider and hosted behavior require separate verification. The production build retains a bundle-size advisory.
+The completed website passed all 162 frontend tests, lint, and the production build under Node 22. Production-browser checks covered 32 theme/layout scenarios across both public pages, all 28 gallery variants, keyboard navigation, native previews, clipboard success/failure, 200% text, contrast, and direct loading/refresh. Eight additional browser scenarios used synthetic accounts to check configured entry actions; live providers remain unverified. Compatible frontend tooling updates cleared the dependency advisories; full frontend and backend audits reported zero on 27 October 2026. The configured production build retains a bundle-size advisory.
 
 ## Why this matters to clients and teams
 
@@ -110,5 +110,3 @@ This project demonstrates how I approach independent software work:
 I’m Jaylord Coronado, a full-stack developer who builds practical web applications with clear user experiences, maintainable architecture, and attention to product details.
 
 [View my GitHub profile](https://github.com/Jlordcoronado)
-
-Services acceptance was rechecked on 27 October 2026 under Node 22: all four offers and supporting links, keyboard section navigation, both themes, narrow layouts, preview/contact actions, the full 146-test suite, lint, and production build passed.

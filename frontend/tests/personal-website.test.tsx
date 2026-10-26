@@ -40,7 +40,7 @@ it('renders approved public copy and working contact, profile and app links with
   );
   for (const name of ['Kanban Desk', 'Explore Kanban Desk'])
     for (const link of screen.getAllByRole('link', { name }))
-      expect(link).toHaveAttribute('href', '/try');
+      expect(link).toHaveAttribute('href', '/kanban');
   expect(screen.getAllByRole('link', { name: 'LinkedIn' })[0]).toHaveAttribute(
     'href',
     'https://www.linkedin.com/in/jaylord-coronado/'
@@ -136,10 +136,10 @@ it('switches and persists theme and shows a useful preview failure state', async
     screen.getByRole('button', {
       name: 'View hero dashboard preview full size',
     })
-  ).toBeDisabled();
+  ).toHaveAttribute('aria-disabled', 'true');
   expect(
     screen.getAllByRole('link', { name: 'Explore Kanban Desk' })[0]
-  ).toHaveAttribute('href', '/try');
+  ).toHaveAttribute('href', '/kanban');
 });
 
 it('preserves guest tasks, custom columns, storage keys and an editor draft when entering /try', async () => {
@@ -168,6 +168,10 @@ it('preserves guest tasks, custom columns, storage keys and an editor draft when
   await userEvent
     .setup()
     .click(screen.getAllByRole('link', { name: 'Explore Kanban Desk' })[0]);
+  expect(window.location.pathname).toBe('/kanban');
+  await userEvent
+    .setup()
+    .click(screen.getAllByRole('link', { name: 'Try as guest' })[0]);
   expect(window.location.pathname).toBe('/try');
   expect(screen.getByRole('dialog', { name: 'Edit task' })).toBeInTheDocument();
   expect(screen.getByLabelText('Title')).toHaveValue('My unfinished edit');
@@ -188,8 +192,8 @@ it('presents one independent case study with lazy preview, source, implementatio
     'https://github.com/Jlordcoronado/kanban-board-app'
   );
   expect(
-    within(region).getByRole('link', { name: 'Try Kanban Desk' })
-  ).toHaveAttribute('href', '/try');
+    within(region).getByRole('link', { name: 'View Kanban Desk' })
+  ).toHaveAttribute('href', '/kanban');
   expect(
     within(region).getByText(
       /hosted account access and cloud behavior have not been verified/
@@ -217,12 +221,13 @@ it('presents one independent case study with lazy preview, source, implementatio
     'preview could not load'
   );
   fireEvent(dialog, new Event('cancel', { cancelable: true }));
-  expect(trigger).toBeDisabled();
+  expect(trigger).toHaveAttribute('aria-disabled', 'true');
+  expect(trigger).toHaveFocus();
   expect(
     within(
       screen.getByRole('figure', { name: 'Hero dashboard preview' })
     ).getByRole('button')
-  ).toBeEnabled();
+  ).toHaveAttribute('aria-disabled', 'false');
 });
 
 it.each([true, false])(
@@ -273,7 +278,7 @@ it('provides working footer section, profile and project links', async () => {
   }
   expect(
     within(footer).getByRole('link', { name: 'Kanban Desk' })
-  ).toHaveAttribute('href', '/try');
+  ).toHaveAttribute('href', '/kanban');
   expect(
     within(footer).getByRole('link', { name: 'LinkedIn' })
   ).toHaveAttribute('href', 'https://www.linkedin.com/in/jaylord-coronado/');

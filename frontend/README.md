@@ -1,22 +1,24 @@
 # Kanban Desk Frontend
 
-The React 19 and TypeScript frontend for Jaylord Coronado's personal website and Kanban Desk. The public homepage opens at `/`; **Explore Kanban Desk** opens the guest board at `/try`, or continues to `/dashboard` for signed-in visitors. The application provides account access, a signed-in task dashboard, private personal and existing team boards, task and column modals, drag-and-drop interactions, and light/dark themes. The homepage and guest board work without cloud configuration. Guest tasks, columns, and archives use versioned browser storage; signed-in boards load and save through the backend.
+The React 19 and TypeScript frontend for Jaylord Coronado's personal website and Kanban Desk. The public homepage opens at `/`; **Explore Kanban Desk** opens `/kanban`. On that product introduction, **Try as guest** opens `/try` and signed-in visitors can **Open dashboard**. Both public pages and the guest board work without cloud configuration. Account entry actions appear only when cloud access is configured.
 
-The frontend is a public client application. Keep backend secrets and private configuration outside this directory.
+Guest tasks, columns, and archives use versioned browser storage. Signed-in boards load and save through the backend. Keep backend secrets and private configuration outside this public client directory.
 
-## Personal website
+## Public pages and screenshots
 
-`src/pages/PersonalWebsite.tsx` renders the hero and real dashboard preview, followed by Services and About. Four stacked services link to supporting work. About contains the professional introduction, an independent-project paragraph, six shared skill groups, and an anonymous reconciliation example. The main action remains **Contact me**, which opens an email draft. Profile links and app-entry destinations remain available alongside it.
+`src/pages/PersonalWebsite.tsx` renders the accepted hero, Services, About, Projects, Contact, and footer. The Kanban Desk case study covers frontend/backend work, guest/cloud separation, workspace permissions, revision conflicts, and reviewable AI suggestions. **Contact me** opens the approved email draft; **Copy email** announces success or a manual-copy fallback. Header/footer section links move focus to headings, and navigation stays visible and wraps on mobile.
 
-Public copy lives in the `services`, `introduction`, `skillGroups`, and `kanbanProject` constants in that component. Scoped layout and typography live in `src/css/personal-website.css`. Archivo 600 headings and IBM Plex Sans 400/500 body text are served from `public/fonts/`, with OFL licenses. Application screens retain Inter and the existing theme tokens.
+Public copy lives in the `services`, `introduction`, `skillGroups`, `kanbanProject`, and contact/profile constants in that component. `src/pages/KanbanIntroduction.tsx` contains the product introduction, guest/account comparison, three native FAQ controls, account-aware app actions, and developer credit. Its comparison and FAQ content is stored as editable data. Each public route has distinct title and description metadata. Recovery routing takes precedence over both pages.
 
-The inspected light/dark dashboard captures are in `public/images/`, with paths, dimensions, and alternative text in `src/lib/projectPreview.ts`. They contain example tasks. **View full size** opens the native preview dialog; Escape closes it and restores focus. Section links move focus to their headings. The homepage does not initiate workspace or board reads.
+`src/component/ScreenshotGallery.tsx` provides seven keyboard-operable tabs: Dashboard, Guest board, Personal board, Team board, Task details, Edit task, and Account settings. Arrow keys wrap; Home/End select the first/last tab. Choose Match screen, Desktop, or Mobile; the shared theme control selects light/dark assets. Only the active screen is mounted and loaded. Responsive pictures reserve the selected asset's dimensions. Native full-size dialogs support Close, Escape, focus containment, and focus return, including image failures. Gallery images have a retry action.
 
-Projects follows About with one Kanban Desk case study, a lazy dashboard preview, source link, and `/try` app entry. It covers frontend/backend work, device/cloud separation, permissions, revision conflicts, and reviewable AI suggestions. Contact follows Projects with the approved mailto action, selectable address, Copy email status/fallback, and profile links. The footer contains the public name and section/project/profile links. Header and footer links focus section headings; mobile navigation remains visible and wraps. The separate `/kanban` introduction is the next phase.
+`src/lib/projectPreview.ts` records labels, captions, alternative text, dimensions, theme, and viewport for all **28 variants** in `public/images/`. The original two desktop dashboard PNGs are retained; 26 additional WebP variants come from actual components with deterministic example data. Screens were inspected for private data. Account examples use `example.com` addresses and do not verify hosted accounts. Hero and Projects dashboard previews have separate accessible names, priority/lazy-loading behavior, and failure states. Add future screens through the manifest with four inspected theme/viewport assets and accurate dimensions.
+
+Scoped styles live in `src/css/personal-website.css` and `src/css/kanban-introduction.css`. Archivo 600 headings and IBM Plex Sans 400/500 body text are self-hosted in `public/fonts/`, with OFL licenses. Application routes retain Inter and their existing theme tokens. Neither public page initiates workspace or board reads; already loaded signed-in state survives public/app navigation.
 
 ## Run locally
 
-From this directory, install dependencies and start the Vite development server:
+Use Node 22. From this directory, install dependencies and start the Vite development server:
 
 ```bash
 npm install
@@ -56,6 +58,7 @@ Routes:
 - `/forgot-password` and `/reset-password`: request a reset email and save a password from a recovery session.
 - `/auth/callback`: process the Supabase browser callback and explain failed/canceled links.
 - `/`: public personal website, including for signed-in visitors.
+- `/kanban`: public product introduction and example gallery; guest entry remains `/try`.
 - `/try`: guest board for signed-out visitors; signed-in visitors continue to `/dashboard`. **Log in** opens account forms in a native modal over the guest board. The dialog contains keyboard focus, supports Escape/Close, restores focus, and scrolls on mobile.
 
 The Supabase browser SDK manages persistence, refresh, and callback processing. Its default browser flow is explicitly configured; no custom password storage or token storage is added. Authentication callback parameters are cleared after processing. Expired recovery links offer a new reset request. A successful reset opens the authenticated dashboard.
@@ -110,10 +113,8 @@ npm run preview  # Preview the production build locally
 
 Tests mock Supabase and HTTP transport; they do not create live accounts or send real email. Verify the configured project with two accounts: signup → confirmation → personal board, Google login, refresh, password reset, sign-out, then sign in to the second account and confirm the first account's tasks are absent. Check keyboard navigation, mobile widths, both themes, callback failures, and offline API errors in real browsers.
 
-The website changes passed all 146 frontend tests, lint, and the production build. Sixteen isolated Chromium scenarios covered both themes at desktop, tablet, mobile, and landscape sizes, plus 200% text at an 800px viewport. Checks included horizontal overflow, actual font loading, text contrast, section/evidence links, direct section URLs, native preview controls, contact href, theme persistence, and guest entry without application-data requests. The isolated browser run used blank cloud configuration; it does not verify signed-in or hosted behavior. The existing production bundle-size advisory remains.
+The completed website passed all 162 frontend tests, lint, and the production build under Node 22.23.4. Production Chromium checks covered 16 scenarios per public page across both themes at 320–1440px, tablet and landscape layouts, plus 200% text. Checks covered all gallery variants, responsive image dimensions, native dialogs/focus, section and footer links, direct `/kanban` refresh, keyboard tabs, FAQs, contrast, reduced motion, clipboard success/failure/missing API, theme persistence, guest entry, and public pages without application-data reads. Eight additional scenarios used synthetic configured/signed-in accounts, with recovery and pending-state tests. These simulations do not verify live providers or hosted accounts. The configured production build retains its bundle-size advisory.
+
+Compatible tooling updates resolved the advisories found during final verification. Full frontend and backend `npm audit` checks reported zero advisories on 27 October 2026. No backend application changes or provider setup were included.
 
 This source includes authentication integration; it does not establish that the public demo has been deployed with it. For the portfolio overview, see the [project README](../README.md).
-
-Services acceptance was rechecked on 27 October 2026 under Node 22: all four offers and supporting links, keyboard section navigation, both themes, narrow layouts, preview/contact actions, the full 146-test suite, lint, and production build passed.
-
-Projects passed the full 148-test frontend suite, lint, production build under Node 22, and 16 isolated Chromium responsive/theme/keyboard/contrast scenarios. Hero and Projects previews have distinct accessible names and independent failure handling.
