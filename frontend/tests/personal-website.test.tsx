@@ -99,7 +99,7 @@ it.each(['Services', 'About', 'Projects', 'Contact'])(
     const link = within(
       screen.getByRole('navigation', { name: 'Main navigation' })
     ).getByRole('link', { name: section });
-    expect(link).toHaveAttribute('href', `#${section.toLowerCase()}`);
+    expect(link).toHaveAttribute('href', `/#${section.toLowerCase()}`);
     expect(heading).toHaveAttribute('id', section.toLowerCase());
     await userEvent.setup().click(link);
     expect(heading).toHaveFocus();
@@ -272,7 +272,7 @@ it('provides working footer section, profile and project links', async () => {
   const footer = screen.getByRole('contentinfo');
   for (const name of ['Services', 'About', 'Projects', 'Contact']) {
     const link = within(footer).getByRole('link', { name });
-    expect(link).toHaveAttribute('href', `#${name.toLowerCase()}`);
+    expect(link).toHaveAttribute('href', `/#${name.toLowerCase()}`);
     await user.click(link);
     expect(screen.getByRole('heading', { name, exact: true })).toHaveFocus();
   }

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Home from './pages/Home.tsx';
 import {
   createBrowserRouter,
@@ -6,7 +6,9 @@ import {
   Navigate,
   Route,
   Routes,
+  ScrollRestoration,
   useLocation,
+  useNavigationType,
   matchPath,
 } from 'react-router-dom';
 import { AccountModal } from './component/AccountModal';
@@ -83,6 +85,29 @@ function getInitialTheme(): 'light' | 'dark' {
     : 'light';
 }
 
+function PublicPageFocus() {
+  const { pathname, hash } = useLocation();
+  const navigationType = useNavigationType();
+  const previousPathname = useRef(pathname);
+
+  useLayoutEffect(() => {
+    const changedPathname = previousPathname.current !== pathname;
+    previousPathname.current = pathname;
+    if (!changedPathname || hash || navigationType === 'POP') return;
+
+    const headingId =
+      pathname === '/'
+        ? 'website-headline'
+        : pathname === '/kanban'
+          ? 'kanban-headline'
+          : null;
+    if (headingId)
+      document.getElementById(headingId)?.focus({ preventScroll: true });
+  }, [pathname, hash, navigationType]);
+
+  return null;
+}
+
 function Application() {
   const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme);
 
@@ -103,6 +128,8 @@ function Application() {
   return (
     <AuthProvider>
       <ApplicationRoutes {...props} />
+      <ScrollRestoration />
+      <PublicPageFocus />
     </AuthProvider>
   );
 }

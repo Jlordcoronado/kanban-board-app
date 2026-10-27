@@ -81,20 +81,26 @@ export default function KanbanIntroduction(props: ThemeProps) {
   const screenshots = useRef<HTMLHeadingElement>(null);
   return (
     <div className="personal-website kanban-introduction">
-      <a className="website-skip" href="#kanban-main">
+      <Link
+        className="website-skip"
+        to="#kanban-main"
+        onClick={() =>
+          document.getElementById('kanban-main')?.focus({ preventScroll: true })
+        }
+      >
         Skip to content
-      </a>
+      </Link>
       <header className="website-header">
         <Link className="website-brand" to="/kanban">
           Kanban Desk
         </Link>
         <nav className="website-navigation" aria-label="Product navigation">
-          <a
-            href="#screenshots"
+          <Link
+            to="#screenshots"
             onClick={() => screenshots.current?.focus({ preventScroll: true })}
           >
             Screenshots
-          </a>
+          </Link>
           {!loading &&
             (session ? (
               <Link to="/dashboard">Open dashboard</Link>
@@ -114,7 +120,9 @@ export default function KanbanIntroduction(props: ThemeProps) {
               {error}
             </p>
           )}
-          <h1 id="kanban-headline">Your tasks, from to do to done.</h1>
+          <h1 id="kanban-headline" tabIndex={-1}>
+            Your tasks, from to do to done.
+          </h1>
           <p>
             Organize work into stages, set priorities and deadlines, and open
             each task to review its details. Start with a guest board on this

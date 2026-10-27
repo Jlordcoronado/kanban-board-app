@@ -220,46 +220,54 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
   const experience = useRef<HTMLParagraphElement>(null);
   return (
     <div className="personal-website">
-      <a className="website-skip" href="#website-main">
+      <Link
+        className="website-skip"
+        to="#website-main"
+        onClick={() =>
+          document
+            .getElementById('website-main')
+            ?.focus({ preventScroll: true })
+        }
+      >
         Skip to content
-      </a>
+      </Link>
       <header className="website-header">
         <Link className="website-brand" to="/" aria-label="jlord.dev home">
           jlord.dev
         </Link>
         <nav className="website-navigation" aria-label="Main navigation">
-          <a
-            href="#services"
+          <Link
+            to="#services"
             onClick={() =>
               servicesHeading.current?.focus({ preventScroll: true })
             }
           >
             Services
-          </a>
-          <a
-            href="#about"
+          </Link>
+          <Link
+            to="#about"
             onClick={() => aboutHeading.current?.focus({ preventScroll: true })}
           >
             About
-          </a>
-          <a
-            href="#projects"
+          </Link>
+          <Link
+            to="#projects"
             onClick={() =>
               projectsHeading.current?.focus({ preventScroll: true })
             }
           >
             Projects
-          </a>
+          </Link>
           <Link to="/kanban">Kanban Desk</Link>
-          <a
+          <Link
             className="website-header-contact"
-            href="#contact"
+            to="#contact"
             onClick={() =>
               contactHeading.current?.focus({ preventScroll: true })
             }
           >
             Contact
-          </a>
+          </Link>
           <PublicThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
         </nav>
       </header>
@@ -276,7 +284,7 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
           >
             <p className="website-name">Jaylord Coronado</p>
             <p className="website-title">Full-Stack Software Engineer</p>
-            <h1 id="website-headline">
+            <h1 id="website-headline" tabIndex={-1}>
               I build full-stack applications, integrate AI, and automate
               business workflows.
             </h1>
@@ -322,8 +330,8 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
                   {service.href.startsWith('/') ? (
                     <Link to={service.href}>{service.work}</Link>
                   ) : (
-                    <a
-                      href={service.href}
+                    <Link
+                      to={service.href}
                       onClick={() =>
                         (service.id === 'automation'
                           ? reconciliationHeading.current
@@ -332,7 +340,7 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
                       }
                     >
                       {service.work}
-                    </a>
+                    </Link>
                   )}
                   <p>{service.evidence}</p>
                 </div>
@@ -521,15 +529,15 @@ export default function PersonalWebsite({ theme, onToggleTheme }: ThemeProps) {
             { label: 'Projects', ref: projectsHeading },
             { label: 'Contact', ref: contactHeading },
           ].map((section) => (
-            <a
+            <Link
               key={section.label}
-              href={`#${section.label.toLowerCase()}`}
+              to={`#${section.label.toLowerCase()}`}
               onClick={() =>
                 section.ref.current?.focus({ preventScroll: true })
               }
             >
               {section.label}
-            </a>
+            </Link>
           ))}
           <Link to="/kanban">Kanban Desk</Link>
         </nav>

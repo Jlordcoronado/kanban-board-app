@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -140,6 +141,39 @@ it('waits for the existing session check before offering app entry', () => {
   expect(
     screen.queryByRole('link', { name: 'Open dashboard' })
   ).not.toBeInTheDocument();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it('keeps scroll restoration mounted when the session resolves on a public page', async () => {
+  fixture.configured = true;
+  let finish!: (value: { data: { session: Session }; error: null }) => void;
+  fixture.auth.getSession.mockImplementation(
+    () => new Promise((resolve) => (finish = resolve))
+  );
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(screen.getByRole('link', { name: 'Jaylord Coronado' }));
+  await user.click(screen.getByRole('link', { name: 'View Kanban Desk' }));
+  expect(screen.getByRole('heading', { level: 1 })).toHaveFocus();
+  const scrollCalls = vi.mocked(window.scrollTo).mock.calls.length;
+
+  await act(async () =>
+    finish({
+      data: {
+        session: {
+          access_token: 'test-only-session',
+          user: { id: 'example', email: 'alex@example.com' },
+        } as Session,
+      },
+      error: null,
+    })
+  );
+
+  expect(screen.getAllByRole('link', { name: 'Open dashboard' })).toHaveLength(
+    3
+  );
+  expect(window.scrollTo).toHaveBeenCalledTimes(scrollCalls);
+  expect(screen.getByRole('heading', { level: 1 })).not.toHaveFocus();
   expect(fetch).not.toHaveBeenCalled();
 });
 
